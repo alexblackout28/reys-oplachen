@@ -1,0 +1,1135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1d5fbf">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Рейс оплачен">
+<script>window.REYS_PWA=true;</script>
+<title>Рейс оплачен</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Контроль оплат рейсов для малых перевозчиков: срок оплаты от события, напоминания, претензия с расчётом процентов по ст. 395 ГК РФ.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: рабочий экран диспетчера — сводка долгов сверху, список рейсов как реестр накладных, детали в выезжающей панели */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #e9edf3;
+  --fg: #16202c;
+  --muted: #5b6878;
+  --line: #d3dae4;
+  --accent: #1d5fbf;          /* синий дорожного указателя */
+  --accent-fg: #ffffff;
+  --bad: #c62f2f; --bad-bg: #fbe9e8;
+  --warn: #a86400; --warn-bg: #fdf1dc;
+  --ok: #217a4a; --ok-bg: #e4f4ea;
+  --idle: #5b6878; --idle-bg: #e9edf3;
+  --font-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151d; --surface: #17202b; --surface-2: #1f2a37; --fg: #e6ebf1; --muted: #93a1b2; --line: #2c3a4a;
+  --accent: #5b95ea; --accent-fg: #0b1220;
+  --bad: #ff7b72; --bad-bg: #3a1c1c; --warn: #f0b252; --warn-bg: #362a14; --ok: #5cc88a; --ok-bg: #16301f; --idle: #93a1b2; --idle-bg: #1f2a37;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151d; --surface: #17202b; --surface-2: #1f2a37; --fg: #e6ebf1; --muted: #93a1b2; --line: #2c3a4a;
+  --accent: #5b95ea; --accent-fg: #0b1220;
+  --bad: #ff7b72; --bad-bg: #3a1c1c; --warn: #f0b252; --warn-bg: #362a14; --ok: #5cc88a; --ok-bg: #16301f; --idle: #93a1b2; --idle-bg: #1f2a37;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; font-weight: 600; }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+button, .btn { font: inherit; font-weight: 500; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.ghost { background: transparent; }
+.danger { color: var(--bad); }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.sign { width: 38px; height: 38px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.demo-note { background: var(--warn-bg); color: var(--fg); border: 1px dashed var(--warn); border-radius: var(--r); padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
+
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.tile { background: var(--surface); padding: 14px 16px; display: grid; gap: 4px; }
+.tile .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.tile .val { font-family: var(--font-data); font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .sub { font-size: 0.82rem; color: var(--muted); }
+.tile.bad .val { color: var(--bad); } .tile.warn .val { color: var(--warn); }
+@media (max-width: 760px) { .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 10px 14px; color: var(--muted); white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 0.85rem; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.list { display: grid; gap: 8px; }
+.trip { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; cursor: pointer; text-align: left; padding: 0; }
+.trip:hover { border-color: var(--accent); }
+.stripe { background: var(--idle); }
+.trip[data-s="overdue"] .stripe { background: var(--bad); }
+.trip[data-s="soon"] .stripe { background: var(--warn); }
+.trip[data-s="paid"] .stripe { background: var(--ok); }
+.trip[data-s="wait_docs"] .stripe { background: repeating-linear-gradient(180deg, var(--idle) 0 6px, transparent 6px 10px); }
+.trip-main { padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.trip-title { font-weight: 600; overflow-wrap: anywhere; }
+.trip-meta { color: var(--muted); font-size: 0.85rem; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.trip-side { padding: 12px 14px; display: grid; justify-items: end; align-content: center; gap: 6px; }
+.amount { font-family: var(--font-data); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { font-size: 0.76rem; font-weight: 600; border-radius: 999px; padding: 3px 9px; white-space: nowrap; background: var(--idle-bg); color: var(--idle); }
+.pill.overdue { background: var(--bad-bg); color: var(--bad); }
+.pill.soon { background: var(--warn-bg); color: var(--warn); }
+.pill.paid { background: var(--ok-bg); color: var(--ok); }
+.action-hint { font-size: 0.82rem; color: var(--bad); }
+@media (max-width: 560px) { .trip { grid-template-columns: 6px minmax(0, 1fr); } .trip-side { grid-column: 2; justify-items: start; padding-top: 0; display: flex; flex-wrap: wrap; align-items: center; } }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 28px; text-align: center; color: var(--muted); }
+
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: 0.9rem; vertical-align: top; }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+td.r, th.r { text-align: right; }
+tr:last-child td { border-bottom: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+label { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; min-width: 0; }
+textarea { font-family: var(--font-data); font-size: 0.85rem; line-height: 1.5; min-height: 320px; resize: vertical; }
+fieldset { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin: 0; display: grid; gap: 12px; min-width: 0; }
+legend { font-weight: 600; padding: 0 6px; font-size: 0.9rem; }
+.errors { color: var(--bad); font-size: 0.9rem; margin: 0; padding-left: 18px; }
+.hint { font-size: 0.82rem; color: var(--muted); margin: 0; }
+
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); padding: 0; width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+dialog::backdrop { background: rgba(10, 16, 24, 0.55); }
+.dlg-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 10px; z-index: 1; }
+.dlg-body { padding: 16px 18px; display: grid; gap: 14px; }
+.dlg-foot { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 12px 18px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 0.9rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; z-index: 50; max-width: calc(100vw - 32px); }
+footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
+@media (prefers-reduced-motion: no-preference) { .trip, button { transition: border-color .15s ease; } }
+.onboard { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 10px; }
+.onboard ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.trust { display: flex; flex-wrap: wrap; gap: 6px; }
+.trust span { font-size: 0.78rem; font-weight: 600; background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 3px 10px; }
+.backup-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+footer a { color: inherit; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="sign" aria-hidden="true">₽</div>
+      <div><h1>Рейс оплачен</h1><p>Кто должен за рейсы, когда срок и что делать дальше</p></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btnAdd">+ Рейс</button>
+      <button id="btnImport">Импорт CSV</button>
+      <button id="btnExport">Экспорт</button>
+      <button id="btnInstall" hidden>На экран телефона</button>
+      <a class="btn" id="btnFeedback" href="https://t.me/alnelise" target="_blank" rel="noopener">Написать автору</a>
+    </div>
+  </header>
+
+  <div class="demo-note" id="demoNote" hidden>
+    <span><b>Это пример.</b> Заказчики и суммы выдуманы, чтобы показать работу. Сегодняшняя дата для расчётов — <span id="todayLbl" class="num"></span>.<br><span class="small muted">Бесплатно · без регистрации · ваши рейсы хранятся только на вашем устройстве.</span></span>
+    <button id="btnClearDemo">Очистить и начать со своих рейсов</button>
+  </div>
+
+  <div class="onboard" id="onboard" hidden>
+    <div class="trust"><span>Бесплатно</span><span>Без регистрации</span><span>Рейсы хранятся только на вашем устройстве</span></div>
+    <h2>Как начать — 3 шага</h2>
+    <ol class="small">
+      <li>Нажмите <b>«+ Рейс»</b>: заказчик, сумма, дата выгрузки и условия оплаты из заявки — срок и от чего он считается. Это 1–2 минуты.</li>
+      <li>Приложение посчитает срок оплаты по производственному календарю и покажет статус: «срок не начался», «скоро срок», «просрочка».</li>
+      <li>При просрочке откройте рейс и нажмите <b>«Напоминание»</b> или <b>«Претензия»</b> — текст с расчётом процентов по ст. 395 ГК РФ готов.</li>
+    </ol>
+    <p class="hint">Открывать как приложение: Android, Chrome — меню ⋮ → «Добавить на главный экран»; iPhone, Safari — «Поделиться» → «На экран „Домой“».</p>
+  </div>
+
+  <div class="backup-note" id="backupNote" hidden>
+    <span>Рейсы хранятся только в этом браузере. <b>Сохраните резервную копию</b>: если очистить браузер или сменить телефон, данные пропадут.</span>
+    <span style="display:flex;gap:8px"><button class="primary" id="btnBackup">Сохранить копию</button><button class="ghost" id="btnBackupLater">Позже</button></span>
+  </div>
+
+  <section class="summary" aria-label="Сводка">
+    <div class="tile"><span class="lbl">Должны всего</span><span class="val" id="sDebt">0</span><span class="sub" id="sDebtSub"></span></div>
+    <div class="tile bad"><span class="lbl">Просрочено</span><span class="val" id="sOver">0</span><span class="sub" id="sOverSub"></span></div>
+    <div class="tile warn"><span class="lbl">Срок в ближайшие 3 дня</span><span class="val" id="sSoon">0</span><span class="sub" id="sSoonSub"></span></div>
+    <div class="tile"><span class="lbl">Срок ещё не начался</span><span class="val" id="sWait">0</span><span class="sub" id="sWaitSub"></span></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="trips" aria-selected="true">Рейсы</button>
+    <button role="tab" data-tab="customers" aria-selected="false">Заказчики</button>
+    <button role="tab" data-tab="settings" aria-selected="false">Реквизиты и ставка</button>
+    <button role="tab" data-tab="help" aria-selected="false">Как считается</button>
+  </nav>
+
+  <section id="tab-trips" class="list-section" style="display:grid;gap:12px">
+    <div class="toolbar" id="filters">
+      <button class="chip" data-f="open" aria-pressed="true">Неоплаченные</button>
+      <button class="chip" data-f="overdue" aria-pressed="false">Просроченные</button>
+      <button class="chip" data-f="wait_docs" aria-pressed="false">Без начала срока</button>
+      <button class="chip" data-f="paid" aria-pressed="false">Оплаченные</button>
+      <button class="chip" data-f="all" aria-pressed="false">Все</button>
+      <input id="search" type="search" placeholder="Поиск: заказчик, ИНН, маршрут, № заявки" style="max-width:320px">
+    </div>
+    <div class="list" id="tripList"></div>
+  </section>
+
+  <section id="tab-customers" hidden>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Заказчик</th><th class="r">Рейсов</th><th class="r">Долг</th><th class="r">Просрочено</th><th class="r">Макс. просрочка</th><th class="r">Средняя задержка</th><th>Риск</th></tr></thead>
+      <tbody id="custBody"></tbody>
+    </table></div>
+    <p class="hint">Средняя задержка считается по оплаченным рейсам: на сколько дней позже срока пришли деньги. Это ваша личная история с заказчиком, она никуда не отправляется.</p>
+  </section>
+
+  <section id="tab-settings" hidden>
+    <div class="panel">
+      <h2>Ваши реквизиты для претензий</h2>
+      <div class="grid2">
+        <label>Название (ИП / ООО)<input id="pName" placeholder="ИП Петров Иван Сергеевич"></label>
+        <label>ИНН<input id="pInn" inputmode="numeric" placeholder="10 или 12 цифр"></label>
+        <label>Кто подписывает<input id="pSigner" placeholder="Петров И. С."></label>
+        <label>Контакты<input id="pContacts" placeholder="+7 900 000-00-00, mail@example.ru"></label>
+      </div>
+      <label>Банковские реквизиты<textarea id="pBank" style="min-height:90px" placeholder="р/с, банк, БИК, к/с"></textarea></label>
+      <h2>Ключевая ставка ЦБ для ст. 395 ГК РФ</h2>
+      <p class="hint">По умолчанию вшита история ставки с 2024 года по данным cbr.ru (на 24.10.2026 действует 14%, решение ЦБ от 23.10.2026). После следующих заседаний ЦБ добавьте новую строку. Если ставка менялась в период просрочки, добавьте строки — проценты разобьются по периодам. Проверить ставку: cbr.ru → «Ключевая ставка».</p>
+      <div id="ratesBox" style="display:grid;gap:8px"></div>
+      <div class="toolbar"><button id="btnAddRate">+ Период ставки</button><button class="primary" id="btnSaveProfile">Сохранить</button></div>
+    </div>
+  </section>
+
+  <section id="tab-help" hidden>
+    <div class="panel" style="max-width:760px">
+      <h2>Как приложение считает сроки</h2>
+      <ul class="small" style="margin:0;padding-left:18px;display:grid;gap:6px">
+        <li><b>Срок оплаты считается от события из заявки:</b> выгрузка, получение сканов, получение оригиналов, подписание ЭТрН или дата счёта. Пока события нет, срок не начался — рейс попадает в «Без начала срока». Это самый частый способ оттянуть оплату.</li>
+        <li><b>Оригиналы в пути:</b> если указана дата отправки, срок оценивается как «дата отправки + дни доставки» (по умолчанию 7) и помечается как оценка.</li>
+        <li><b>Банковские дни</b> — рабочие дни по производственному календарю РФ на 2026–2027 годы (с переносами). <b>Календарные</b> — подряд; если последний день выпал на выходной, срок переносится на следующий рабочий день (ст. 193 ГК РФ).</li>
+        <li><b>Проценты по ст. 395 ГК РФ</b> — со дня после срока оплаты по сегодняшний день: сумма × ключевая ставка × дни / 365 (366). Если в заявке есть неустойка, в претензию идёт она вместо процентов.</li>
+        <li><b>Претензия:</b> иск в арбитраж можно подать по истечении 30 календарных дней после её направления, то есть с 31-го дня (ч. 5 ст. 4 АПК РФ), если в договоре не указан другой срок.</li>
+        <li><b>Срок исковой давности.</b> По оплате перевозки он обычно всего <b>1 год</b>: п. 3 ст. 797 ГК РФ, ст. 42 Устава автотранспорта, п. 30 постановления Пленума ВС № 26 от 26.06.2018; для экспедиции — ст. 13 закона № 87-ФЗ. Срок считается со дня, следующего за последним днём оплаты. На время претензии (30 дней или срок из договора) он приостанавливается, но приложение эти дни не добавляет и показывает более раннюю, осторожную дату. Предупреждение появляется за 3 месяца. Если договор оформлен как «оказание услуг», срок может быть 3 года — уточните у юриста.</li>
+        <li><b>Порядок действий при просрочке</b> (можно менять в коде): с 1-го дня — напоминание, с 5-го — письмо-требование, с 10-го — претензия.</li>
+      </ul>
+      <p class="hint">Шаблон претензии — помощь в подготовке документа, а не юридическая консультация. Перед отправкой сверьте его с вашей заявкой и договором.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Ваши рейсы хранятся только в этом браузере на вашем устройстве и никуда не передаются. Резервная копия — «Экспорт → Все рейсы в CSV», восстановление — «Импорт CSV».</span>
+    <span id="metrikaNote" hidden>Сайт считает анонимную статистику посещений (Яндекс.Метрика) — без содержимого ваших рейсов.</span>
+    <span>Вопросы и предложения: <a href="https://t.me/alnelise" target="_blank" rel="noopener">Telegram @alnelise</a>. Бесплатная версия для проверки идеи, 0.2, октябрь 2026.</span>
+  </footer>
+</div>
+
+<dialog id="dlgTrip" aria-labelledby="dlgTripTitle">
+  <form id="tripForm" method="dialog">
+    <div class="dlg-head"><h2 id="dlgTripTitle">Новый рейс</h2><button type="button" class="ghost" data-close>Закрыть</button></div>
+    <div class="dlg-body">
+      <ul class="errors" id="formErrors" hidden></ul>
+      <fieldset><legend>Заказчик и заявка</legend>
+        <div class="grid2">
+          <label>Заказчик*<input id="fCustomer" required placeholder="ООО «Название»"></label>
+          <label>ИНН заказчика<input id="fCustomerInn" inputmode="numeric"></label>
+          <label>№ заявки<input id="fOrderNo"></label>
+          <label>Дата заявки<input id="fOrderDate" type="date"></label>
+          <label>Маршрут<input id="fRoute" placeholder="Рязань — Москва"></label>
+          <label>Сумма, руб.*<input id="fAmount" type="number" min="0" step="0.01" required></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>Рейс и документы</legend>
+        <div class="grid2">
+          <label>Дата погрузки<input id="fLoadDate" type="date"></label>
+          <label>Дата выгрузки*<input id="fUnloadDate" type="date" required></label>
+          <label>Документы отправлены<input id="fDocsSentDate" type="date"></label>
+          <label>Трек / № отправления<input id="fDocsTrack" placeholder="Почта, СДЭК, ЭДО"></label>
+          <label>Дней доставки оригиналов (оценка)<input id="fDocsTransitDays" type="number" min="0" max="60" value="7"></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>Условия оплаты из заявки</legend>
+        <div class="grid2">
+          <label>Срок, дней*<input id="fTermDays" type="number" min="0" max="365" required value="10"></label>
+          <label>Каких дней<select id="fTermType"><option value="bank">банковских (рабочих)</option><option value="calendar">календарных</option></select></label>
+          <label>Считать с момента<select id="fBaseEvent"></select></label>
+          <label>Дата этого события (если известна)<input id="fBaseEventDate" type="date"></label>
+          <label>Неустойка из заявки, % в день<input id="fPenaltyPct" type="number" min="0" step="0.01" placeholder="например 0,1"></label>
+          <label>Предел неустойки, % от суммы<input id="fPenaltyCapPct" type="number" min="0" step="1" placeholder="0 — без предела"></label>
+        </div>
+        <p class="hint" id="duePreview"></p>
+      </fieldset>
+      <fieldset><legend>Претензия</legend>
+        <div class="grid2"><label>Претензия направлена<input id="fClaimSentDate" type="date"></label><label>Заметка<input id="fNote"></label></div>
+      </fieldset>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="ghost danger" id="btnDelete" hidden>Удалить рейс</button>
+      <span style="display:flex;gap:8px;margin-left:auto"><button type="button" data-close>Отмена</button><button type="submit" class="primary" id="btnSave">Сохранить</button></span>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgView" aria-labelledby="viewTitle">
+  <div class="dlg-head"><h2 id="viewTitle">Рейс</h2><button type="button" class="ghost" data-close>Закрыть</button></div>
+  <div class="dlg-body" id="viewBody"></div>
+  <div class="dlg-foot" id="viewFoot"></div>
+</dialog>
+
+<dialog id="dlgText" aria-labelledby="textTitle">
+  <div class="dlg-head"><h2 id="textTitle">Текст</h2><button type="button" class="ghost" data-close>Закрыть</button></div>
+  <div class="dlg-body"><p class="hint" id="textHint"></p><textarea id="textArea" aria-label="Текст документа"></textarea></div>
+  <div class="dlg-foot"><span class="hint" id="textWarn"></span><span style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap"><button id="btnDownloadText">Скачать .txt</button><button class="primary" id="btnCopyText">Копировать</button></span></div>
+</dialog>
+
+<dialog id="dlgImport" aria-labelledby="impTitle">
+  <div class="dlg-head"><h2 id="impTitle">Импорт и экспорт</h2><button type="button" class="ghost" data-close>Закрыть</button></div>
+  <div class="dlg-body">
+    <p class="hint">Перенесите рейсы из Excel: «Файл → Сохранить как → CSV». Подходят русские заголовки: <b>Заказчик, Сумма, Дата выгрузки</b> — обязательные; по желанию ИНН, № заявки, Маршрут, Срок оплаты, Тип дней (банковские/календарные), Срок от (выгрузки/сканов/оригиналов/ЭТрН/счёта), Документы отправлены, Трек, Оплачено, Дата оплаты. Даты — 05.10.2026 или 5.10.26. Кодировка UTF-8 или Windows-1251 определяется сама; повторный импорт не создаёт дублей. Технические названия колонок: <span class="num small" id="csvCols"></span>.</p>
+    <label>Файл CSV<input type="file" id="csvFile" accept=".csv,text/csv"></label>
+    <label>Или вставьте CSV<textarea id="csvText" style="min-height:140px"></textarea></label>
+    <ul class="errors" id="impErrors" hidden></ul>
+    <div class="toolbar"><button class="primary" id="btnDoImport">Добавить рейсы</button><button id="btnTemplate">Шаблон CSV</button></div>
+    <hr style="border:0;border-top:1px solid var(--line);width:100%">
+    <h3 style="font-size:.95rem">Экспорт</h3>
+    <div class="toolbar"><button id="btnCsvOut">Все рейсы в CSV</button><button id="btnIcsOut">Сроки в календарь (.ics)</button></div>
+    <p class="hint">Файл .ics добавляет сроки оплат в календарь телефона с напоминанием в день срока. Если скачивание не сработало (например, в окне предпросмотра), откроется текст — скопируйте его.</p>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+/*
+ * «Рейс оплачен» — ядро расчётов (без DOM).
+ * Работает в браузере (window.Core) и в Node (require).
+ * Все даты — строки 'YYYY-MM-DD' (локальные, без часового пояса).
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Core = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // --- Производственный календарь (пятидневка) ---------------------------
+  // Нерабочие ДНИ, выпадающие на будни (праздники + переносы).
+  // 2026: ст.112 ТК РФ + Пост. Правительства РФ от 24.09.2025 № 1466 (источник: glavkniga.ru/situations/k518906)
+  // 2027: Пост. Правительства РФ от 17.09.2026 № 1187 (источник: buh.ru/news/utverzhden-poryadok-perenosa-vykhodnykh-dney-v-2027-godu.html)
+  const HOLIDAYS = new Set([
+    // 2026
+    '2026-01-01', '2026-01-02', '2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09',
+    '2026-02-23', '2026-03-09', '2026-05-01', '2026-05-11', '2026-06-12', '2026-11-04', '2026-12-31',
+    // 2027
+    '2027-01-01', '2027-01-04', '2027-01-05', '2027-01-06', '2027-01-07', '2027-01-08',
+    '2027-02-22', '2027-02-23', '2027-03-08', '2027-05-03', '2027-05-10', '2027-06-14',
+    '2027-11-04', '2027-11-05', '2027-12-31',
+  ]);
+  // Рабочие субботы/воскресенья (переносы).
+  const WORKING_WEEKENDS = new Set(['2027-02-20']); // 2027: выходной с сб 20.02 перенесён на пн 22.02 (Пост. № 1187)
+  const CALENDAR_YEARS = [2026, 2027];
+
+  function parse(s) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    const [y, m, d] = s.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? dt : null;
+  }
+  function fmt(dt) { return dt.toISOString().slice(0, 10); }
+  function addDays(s, n) { const d = parse(s); d.setUTCDate(d.getUTCDate() + n); return fmt(d); }
+  function diffDays(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); } // b - a
+  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+  function isWorkingDay(s) {
+    if (WORKING_WEEKENDS.has(s)) return true;
+    const wd = parse(s).getUTCDay();
+    if (wd === 0 || wd === 6) return false;
+    return !HOLIDAYS.has(s);
+  }
+  function calendarCovers(s) { return CALENDAR_YEARS.includes(parse(s).getUTCFullYear()); }
+
+  /** Прибавить n рабочих (банковских) дней: отсчёт со следующего дня после события. */
+  function addWorkingDays(s, n) {
+    let cur = s, left = n;
+    while (left > 0) { cur = addDays(cur, 1); if (isWorkingDay(cur)) left--; }
+    return cur;
+  }
+  /** Если срок выпал на нерабочий день — переносится на ближайший рабочий (ст. 193 ГК РФ). */
+  function shiftToWorking(s) { let cur = s; while (!isWorkingDay(cur)) cur = addDays(cur, 1); return cur; }
+
+  // --- Срок оплаты ------------------------------------------------------
+  const BASE_EVENTS = {
+    unload: 'дата выгрузки',
+    scans: 'получение сканов документов заказчиком',
+    originals: 'получение оригиналов документов заказчиком',
+    etrn: 'подписание ЭТрН грузополучателем',
+    invoice: 'дата счёта/акта',
+  };
+
+  /**
+   * Возвращает {due, estimated, baseDate, reason}
+   * trip: {unloadDate, termDays, termType:'bank'|'calendar', baseEvent, baseEventDate, docsSentDate, docsTransitDays}
+   */
+  function computeDue(trip) {
+    const n = Number(trip.termDays) || 0;
+    let base = null, estimated = false, reason = '';
+    if (trip.baseEvent === 'unload') base = trip.unloadDate;
+    else if (trip.baseEventDate) base = trip.baseEventDate;
+    else if (trip.baseEvent === 'originals' && trip.docsSentDate) {
+      base = addDays(trip.docsSentDate, Number(trip.docsTransitDays ?? 7));
+      estimated = true; reason = 'оригиналы в пути: дата получения оценена';
+    } else if ((trip.baseEvent === 'scans' || trip.baseEvent === 'invoice') && trip.docsSentDate) {
+      base = trip.docsSentDate; estimated = true; reason = 'дата получения не подтверждена — взята дата отправки';
+    }
+    if (!base) return { due: null, estimated: false, baseDate: null, reason: 'срок не начался: нет даты события «' + (BASE_EVENTS[trip.baseEvent] || trip.baseEvent) + '»' };
+    let due = trip.termType === 'calendar' ? shiftToWorking(addDays(base, n)) : (n === 0 ? shiftToWorking(base) : addWorkingDays(base, n));
+    const calendarWarning = (!calendarCovers(base) || !calendarCovers(due)) ? 'производственный календарь задан только на ' + CALENDAR_YEARS.join('–') + ' гг.: праздники вне этих лет не учтены' : '';
+    return { due, estimated, baseDate: base, reason, calendarWarning };
+  }
+
+  // --- Оплаты и статусы -------------------------------------------------
+  function paidSum(trip) { return (trip.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0); }
+  function debt(trip) { return Math.max(0, Math.round(((Number(trip.amount) || 0) - paidSum(trip)) * 100) / 100); }
+  function lastPaymentDate(trip) { return (trip.payments || []).map(p => p.date).filter(Boolean).sort().pop() || null; }
+
+  /** status: paid | overdue | soon | waiting | wait_docs | draft */
+  function tripStatus(trip, today) {
+    const d = computeDue(trip);
+    const left = debt(trip);
+    if (left <= 0 && (Number(trip.amount) || 0) > 0) {
+      const lp = lastPaymentDate(trip);
+      return { code: 'paid', label: 'Оплачен', due: d.due, delayDays: d.due && lp ? Math.max(0, diffDays(d.due, lp)) : 0, debt: 0, estimated: d.estimated, reason: d.reason };
+    }
+    if (!d.due) return { code: 'wait_docs', label: 'Срок не начался', due: null, debt: left, reason: d.reason };
+    const toDue = diffDays(today, d.due);
+    if (toDue < 0) return { code: 'overdue', label: 'Просрочен', due: d.due, overdueDays: -toDue, debt: left, estimated: d.estimated, reason: d.reason };
+    if (toDue <= 3) return { code: 'soon', label: toDue === 0 ? 'Срок сегодня' : 'Срок через ' + toDue + ' дн.', due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
+    return { code: 'waiting', label: 'Ждём оплату', due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
+  }
+
+  // --- Проценты по ст. 395 ГК РФ -----------------------------------------
+  /**
+   * rates: [{from:'YYYY-MM-DD', rate: 14}] — ключевая ставка ЦБ, действует с даты from.
+   * Проценты начисляются со дня, следующего за последним днём срока оплаты, по дату расчёта включительно.
+   * База дней: фактическое число дней в году (365/366) — как в типовых калькуляторах.
+   */
+  function interest395(amount, dueDate, calcDate, rates) {
+    const start = addDays(dueDate, 1);
+    if (diffDays(start, calcDate) < 0 || !(amount > 0)) return { total: 0, days: 0, rows: [] };
+    const rs = (rates || []).filter(r => r.from && r.rate >= 0).slice().sort((a, b) => a.from.localeCompare(b.from));
+    if (!rs.length) return { total: 0, days: 0, rows: [], warning: 'не задана ключевая ставка' };
+    let warning = rs[0].from > start ? 'ставка до ' + rs[0].from + ' не задана — для ранних дней применена первая ставка из таблицы' : '';
+    const rows = [];
+    let cur = start, total = 0;
+    while (diffDays(cur, calcDate) >= 0) {
+      const y = parse(cur).getUTCFullYear();
+      const rate = (rs.filter(r => r.from <= cur).pop() || rs[0]).rate;
+      // конец сегмента: смена ставки, конец года или дата расчёта
+      const nextRate = rs.find(r => r.from > cur);
+      let end = calcDate;
+      const yearEnd = y + '-12-31';
+      if (yearEnd < end) end = yearEnd;
+      if (nextRate && addDays(nextRate.from, -1) < end) end = addDays(nextRate.from, -1);
+      const days = diffDays(cur, end) + 1;
+      const yd = isLeap(y) ? 366 : 365;
+      const sum = amount * rate / 100 * days / yd;
+      rows.push({ from: cur, to: end, days, rate, yearDays: yd, sum: round2(sum) });
+      total += sum;
+      cur = addDays(end, 1);
+    }
+    return { total: round2(total), days: diffDays(start, calcDate) + 1, rows, warning };
+  }
+  function round2(x) { return Math.round(x * 100) / 100; }
+
+  /** Проценты по ст. 395 по рейсу с учётом частичных оплат после срока: каждая оплата уменьшает долг со следующего дня. */
+  function interest395Trip(trip, calcDate, rates) {
+    const due = computeDue(trip).due;
+    const amount = Number(trip.amount) || 0;
+    if (!due || !(amount > 0)) return { total: 0, days: 0, rows: [] };
+    const pays = (trip.payments || []).filter(p => p.date && Number(p.amount) > 0).slice().sort((a, b) => a.date.localeCompare(b.date));
+    let balance = amount - pays.filter(p => p.date <= due).reduce((a, p) => a + Number(p.amount), 0);
+    let from = due; // начисление с from+1
+    const rows = []; let total = 0; let warning = '';
+    const accrue = (to) => {
+      if (balance <= 0 || to <= from) return;
+      const r = interest395(balance, from, to, rates);
+      r.rows.forEach(x => rows.push({ ...x, base: round2(balance) }));
+      total += r.total; if (r.warning) warning = r.warning;
+    };
+    for (const p of pays.filter(p => p.date > due && p.date <= calcDate)) {
+      accrue(p.date); balance = Math.max(0, balance - Number(p.amount)); from = p.date;
+    }
+    accrue(calcDate);
+    return { total: round2(total), days: Math.max(0, diffDays(due, calcDate)), rows, warning };
+  }
+
+  /** Договорная неустойка: pct % в день, с ограничением capPct % от суммы (0 = без ограничения). */
+  function contractPenalty(amount, overdueDays, pctPerDay, capPct) {
+    if (!(pctPerDay > 0) || !(overdueDays > 0)) return 0;
+    let p = amount * pctPerDay / 100 * overdueDays;
+    if (capPct > 0) p = Math.min(p, amount * capPct / 100);
+    return round2(p);
+  }
+
+  // --- Юридические сроки ------------------------------------------------
+  /** Срок исковой давности по перевозке груза — 1 год (п.3 ст.797 ГК РФ; для экспедиции — ст.13 ФЗ № 87-ФЗ). Упрощённо считаем от срока оплаты. */
+  function limitationDate(trip) {
+    const d = computeDue(trip).due || trip.unloadDate;
+    if (!d) return null;
+    const [y, m, dd] = d.split('-').map(Number);
+    const t = new Date(Date.UTC(y + 1, m - 1, dd));
+    if (t.getUTCMonth() !== m - 1) t.setUTCDate(0); // 29.02 → 28.02 следующего года
+    return fmt(t);
+  }
+  /** Иск в арбитраж — не ранее 30 календарных дней после направления претензии (ч.5 ст.4 АПК РФ), если договором не установлен иной срок. */
+  // «по истечении 30 календарных дней со дня направления» → подавать безопасно с 31-го дня
+  function courtAllowedDate(claimSentDate, days) { return claimSentDate ? addDays(claimSentDate, Number(days || 30) + 1) : null; }
+
+  // --- Лестница действий при просрочке (настраиваемая) ------------------
+  const DEFAULT_LADDER = [
+    { day: 1, code: 'remind', title: 'Вежливое напоминание (звонок/мессенджер)' },
+    { day: 5, code: 'letter', title: 'Письмо-требование с расчётом просрочки' },
+    { day: 10, code: 'claim', title: 'Официальная претензия (почтой с описью или по ЭДО)' },
+  ];
+  function nextAction(trip, today, ladder) {
+    const st = tripStatus(trip, today);
+    if (st.code !== 'overdue') return null;
+    if (trip.claimSentDate) {
+      const court = courtAllowedDate(trip.claimSentDate, trip.claimTermDays);
+      return diffDays(today, court) <= 0
+        ? { code: 'court', title: 'Можно подавать иск в арбитраж (прошло 30 дней с претензии)', date: court }
+        : { code: 'wait_claim', title: 'Ждём ответа на претензию до ' + court, date: court };
+    }
+    const l = (ladder || DEFAULT_LADDER).filter(s => st.overdueDays >= s.day).pop();
+    return l ? { code: l.code, title: l.title } : null;
+  }
+
+  // --- Аналитика по заказчикам ------------------------------------------
+  function customerStats(trips, today) {
+    const map = {};
+    for (const t of trips) {
+      const key = (t.customerInn || '').trim() || (t.customer || '—').trim().toLowerCase();
+      const m = map[key] || (map[key] = { key, name: t.customer || '—', inn: t.customerInn || '', trips: 0, debt: 0, overdueDebt: 0, overdueTrips: 0, paidTrips: 0, delaySum: 0, paidLate: 0, maxOverdue: 0 });
+      m.trips++;
+      const st = tripStatus(t, today);
+      m.debt += st.debt || 0;
+      if (st.code === 'overdue') { m.overdueDebt += st.debt; m.overdueTrips++; m.maxOverdue = Math.max(m.maxOverdue, st.overdueDays); }
+      if (st.code === 'paid') { m.paidTrips++; m.delaySum += st.delayDays || 0; if ((st.delayDays || 0) > 0) m.paidLate++; }
+    }
+    return Object.values(map).map(m => ({ ...m, avgDelay: m.paidTrips ? round2(m.delaySum / m.paidTrips) : null,
+      risk: m.overdueTrips > 0 && m.maxOverdue > 14 ? 'high' : (m.overdueTrips > 0 || (m.paidTrips && m.delaySum / m.paidTrips > 5) ? 'mid' : 'low') }))
+      .sort((a, b) => b.overdueDebt - a.overdueDebt || b.debt - a.debt);
+  }
+
+  function summary(trips, today) {
+    const s = { debt: 0, overdue: 0, overdueCount: 0, soon: 0, soonCount: 0, waitDocs: 0, waitDocsCount: 0, interest: 0 };
+    for (const t of trips) {
+      const st = tripStatus(t, today);
+      s.debt += st.debt || 0;
+      if (st.code === 'overdue') { s.overdue += st.debt; s.overdueCount++; }
+      if (st.code === 'soon') { s.soon += st.debt; s.soonCount++; }
+      if (st.code === 'wait_docs') { s.waitDocs += st.debt; s.waitDocsCount++; }
+    }
+    return s;
+  }
+
+  // --- Текст претензии ----------------------------------------------------
+  function money(x) {
+    const neg = x < 0; const [i, f] = Math.abs(Math.round(x * 100) / 100).toFixed(2).split('.');
+    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ',' + f;
+  }
+  function ruDate(s) { if (!s) return '____'; const [y, m, d] = s.split('-'); return d + '.' + m + '.' + y; }
+
+  function claimText(trip, profile, today, rates, opts) {
+    opts = opts || {};
+    const st = tripStatus(trip, today);
+    const due = st.due;
+    const left = debt(trip);
+    const i395 = due ? interest395Trip(trip, today, rates) : { total: 0, days: 0 };
+    const pen = contractPenalty(left, st.overdueDays || 0, Number(trip.penaltyPct) || 0, Number(trip.penaltyCapPct) || 0);
+    const usePenalty = pen > 0;
+    const answerDays = opts.answerDays || 10;
+    const lines = [];
+    lines.push('Кому: ' + (trip.customer || '__________') + (trip.customerInn ? ', ИНН ' + trip.customerInn : ''));
+    lines.push('От: ' + (profile.name || '__________') + (profile.inn ? ', ИНН ' + profile.inn : ''));
+    if (profile.contacts) lines.push('Контакты: ' + profile.contacts);
+    lines.push('');
+    lines.push('ПРЕТЕНЗИЯ');
+    lines.push('об оплате услуг по перевозке груза');
+    lines.push('');
+    lines.push('Дата: ' + ruDate(today));
+    lines.push('');
+    lines.push('Между ' + (profile.name || 'Перевозчиком') + ' (далее — Перевозчик) и ' + (trip.customer || 'Заказчиком') +
+      ' (далее — Заказчик) заключён договор-заявка ' + (trip.orderNo ? '№ ' + trip.orderNo + ' ' : '') + 'от ' + ruDate(trip.orderDate || trip.loadDate) +
+      ' на перевозку груза по маршруту ' + (trip.route || '__________') + '.');
+    lines.push('Перевозчик выполнил обязательства в полном объёме: груз доставлен ' + ruDate(trip.unloadDate) + '.' +
+      (trip.docsSentDate ? ' Документы направлены Заказчику ' + ruDate(trip.docsSentDate) + (trip.docsTrack ? ' (трек/номер отправления: ' + trip.docsTrack + ')' : '') + '.' : ''));
+    lines.push('Стоимость перевозки составляет ' + money(Number(trip.amount) || 0) + ' руб. Срок оплаты по условиям заявки: ' +
+      (trip.termDays || '__') + ' ' + (trip.termType === 'calendar' ? 'календарных' : 'банковских (рабочих)') + ' дней с момента: ' + (BASE_EVENTS[trip.baseEvent] || '__') +
+      '. Оплата должна была поступить не позднее ' + ruDate(due) + '.');
+    if (paidSum(trip) > 0) lines.push('Заказчиком оплачено ' + money(paidSum(trip)) + ' руб.');
+    lines.push('На дату претензии задолженность составляет ' + money(left) + ' руб., просрочка — ' + (st.overdueDays || 0) + ' дн.');
+    lines.push('');
+    if (usePenalty) {
+      lines.push('Условиями заявки предусмотрена неустойка ' + trip.penaltyPct + '% в день от суммы задолженности. Размер неустойки на ' + ruDate(today) + ': ' + money(pen) + ' руб.');
+    } else {
+      lines.push('В соответствии со ст. 395 ГК РФ на сумму долга подлежат начислению проценты за пользование чужими денежными средствами. Расчёт на ' + ruDate(today) + ': ' + money(i395.total) + ' руб. (' + i395.days + ' дн.).');
+    }
+    lines.push('');
+    lines.push('На основании ст. 309, 310, 395 ГК РФ ТРЕБУЕМ в течение ' + answerDays + ' календарных дней с даты получения претензии оплатить задолженность ' +
+      money(left) + ' руб.' + (usePenalty ? ' и неустойку ' + money(pen) + ' руб.' : ' и проценты ' + money(i395.total) + ' руб.') + ' по реквизитам:');
+    lines.push(profile.bank || '__________ (банковские реквизиты)');
+    lines.push('');
+    lines.push('В случае неисполнения требования Перевозчик будет вынужден обратиться в арбитражный суд по истечении 30 календарных дней с даты направления претензии (ч. 5 ст. 4 АПК РФ) с требованием о взыскании долга, процентов (неустойки) по день фактической оплаты, а также судебных расходов, включая госпошлину и расходы на представителя.');
+    lines.push('');
+    lines.push('Приложения: копия договора-заявки; копии транспортной накладной/ЭТрН и акта; копия счёта; расчёт процентов (неустойки).');
+    lines.push('');
+    lines.push('____________________ /' + (profile.signer || '__________') + '/');
+    const calc = [];
+    if (!usePenalty && i395.rows && i395.rows.length) {
+      calc.push('Расчёт процентов по ст. 395 ГК РФ (с учётом частичных оплат):');
+      for (const r of i395.rows) calc.push(ruDate(r.from) + ' — ' + ruDate(r.to) + ': ' + money(r.base) + ' руб. × ' + r.rate + '% × ' + r.days + ' дн. / ' + r.yearDays + ' = ' + money(r.sum) + ' руб.');
+      calc.push('Итого: ' + money(i395.total) + ' руб.');
+    }
+    const d0 = computeDue(trip);
+    const warns = [i395.warning, d0.estimated ? 'Срок оплаты ОЦЕНОЧНЫЙ (' + d0.reason + '): до отправки претензии укажите фактическую дату получения документов заказчиком.' : '', d0.calendarWarning].filter(Boolean);
+    return { text: lines.join('\n'), calc: calc.join('\n'), interest: i395.total, penalty: pen, debt: left, overdueDays: st.overdueDays || 0, warning: warns.join(' ') };
+  }
+
+  function reminderText(trip, profile, today) {
+    const st = tripStatus(trip, today);
+    return 'Добрый день! Напоминаем об оплате рейса ' + (trip.orderNo ? '№ ' + trip.orderNo + ' ' : '') + (trip.route ? '(' + trip.route + ') ' : '') +
+      'на сумму ' + money(debt(trip)) + ' руб. Срок оплаты по заявке — ' + ruDate(st.due) + (st.code === 'overdue' ? ', просрочка ' + st.overdueDays + ' дн.' : '') +
+      '. Документы направлены ' + ruDate(trip.docsSentDate) + (trip.docsTrack ? ' (трек ' + trip.docsTrack + ')' : '') +
+      '. Просим сообщить дату оплаты. ' + (profile.name || '');
+  }
+
+  // --- Экспорт в календарь (.ics) ----------------------------------------
+  function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function toIcs(trips, today) {
+    const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//reys-oplachen//RU', 'CALSCALE:GREGORIAN'];
+    for (const t of trips) {
+      const st = tripStatus(t, today);
+      if (!st.due || st.code === 'paid') continue;
+      const d = st.due.replace(/-/g, '');
+      const d2 = addDays(st.due, 1).replace(/-/g, '');
+      out.push('BEGIN:VEVENT', 'UID:' + (t.id || Math.random().toString(36).slice(2)) + '@reys-oplachen', 'DTSTAMP:' + today.replace(/-/g, '') + 'T090000Z',
+        'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + d2,
+        'SUMMARY:' + icsEscape('Оплата рейса: ' + (t.customer || '') + ' — ' + money(st.debt) + ' руб.'),
+        'DESCRIPTION:' + icsEscape('Заявка ' + (t.orderNo || '') + ', ' + (t.route || '') + '. Если денег нет — отправить напоминание.'),
+        'BEGIN:VALARM', 'TRIGGER:-PT0M', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape('Срок оплаты рейса'), 'END:VALARM', 'END:VEVENT');
+    }
+    out.push('END:VCALENDAR');
+    return out.join('\r\n');
+  }
+
+  // --- CSV ---------------------------------------------------------------
+  const CSV_FIELDS = ['customer', 'customerInn', 'orderNo', 'orderDate', 'route', 'loadDate', 'unloadDate', 'amount', 'termDays', 'termType', 'baseEvent', 'baseEventDate', 'docsSentDate', 'docsTrack', 'docsTransitDays', 'paidAmount', 'paidDate', 'penaltyPct', 'claimSentDate', 'note'];
+  function csvEscape(v) { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function toCsv(trips) {
+    const rows = [CSV_FIELDS.join(';')];
+    for (const t of trips) rows.push(CSV_FIELDS.map(f => f === 'paidAmount' ? paidSum(t) : f === 'paidDate' ? lastPaymentDate(t) : t[f]).map(csvEscape).join(';'));
+    return '\ufeff' + rows.join('\n');
+  }
+  // Синонимы заголовков (рус./англ.), чтобы принимать таблицы из Excel «как есть»
+  const HEADER_ALIASES = {
+    customer: ['customer', 'заказчик', 'клиент', 'контрагент', 'грузоотправитель', 'покупатель'],
+    customerInn: ['customerinn', 'инн', 'инн заказчика', 'инн клиента'],
+    orderNo: ['orderno', '№ заявки', 'номер заявки', 'заявка', '№', 'номер', '№ рейса', 'номер рейса'],
+    orderDate: ['orderdate', 'дата заявки'],
+    route: ['route', 'маршрут', 'направление', 'откуда-куда', 'откуда — куда'],
+    loadDate: ['loaddate', 'дата погрузки', 'погрузка'],
+    unloadDate: ['unloaddate', 'дата выгрузки', 'выгрузка', 'дата разгрузки', 'разгрузка', 'дата рейса', 'дата'],
+    amount: ['amount', 'сумма', 'ставка', 'стоимость', 'сумма рейса', 'фрахт', 'сумма, руб', 'сумма руб'],
+    termDays: ['termdays', 'срок', 'срок оплаты', 'отсрочка', 'дней', 'срок оплаты, дн', 'отсрочка, дн'],
+    termType: ['termtype', 'тип дней', 'дни', 'вид дней'],
+    baseEvent: ['baseevent', 'от события', 'срок от', 'база', 'считать от', 'начало срока'],
+    baseEventDate: ['baseeventdate', 'дата события', 'документы получены', 'дата получения документов', 'оригиналы получены'],
+    docsSentDate: ['docssentdate', 'документы отправлены', 'дата отправки документов', 'отправка документов'],
+    docsTrack: ['docstrack', 'трек', 'трек-номер', 'трек номер', 'номер отправления'],
+    docsTransitDays: ['docstransitdays', 'дней доставки'],
+    paidAmount: ['paidamount', 'оплачено', 'оплата', 'сумма оплаты', 'получено'],
+    paidDate: ['paiddate', 'дата оплаты'],
+    penaltyPct: ['penaltypct', 'неустойка', 'неустойка, %', 'пени'],
+    claimSentDate: ['claimsentdate', 'претензия', 'дата претензии'],
+    note: ['note', 'заметка', 'примечание', 'комментарий'],
+  };
+  const normHead = (h) => h.toLowerCase().replace(/ё/g, 'е').replace(/[«»"]/g, '').replace(/\s+/g, ' ').trim();
+  function mapHeader(h) {
+    const n = normHead(h);
+    for (const [f, al] of Object.entries(HEADER_ALIASES)) if (al.some(a => normHead(a) === n)) return f;
+    return null;
+  }
+  function normDate(v) {
+    v = (v || '').trim(); if (!v) return '';
+    let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    m = v.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2}|\d{4})$/);
+    if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); }
+    return v; // вернётся как есть и не пройдёт проверку
+  }
+  function normNum(v) {
+    v = String(v || '').replace(/[\s  ]/g, '').replace(/(руб\.?|р\.|₽|%)/gi, '');
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(v)) v = v.replace(/\./g, ''); // 1.234.567,89
+    v = v.replace(',', '.');
+    const n = Number(v); return isFinite(n) ? n : NaN;
+  }
+  function normBaseEvent(v) {
+    const s = (v || '').toLowerCase();
+    if (BASE_EVENTS[s]) return s;
+    if (/выгруз|разгруз/.test(s)) return 'unload';
+    if (/скан/.test(s)) return 'scans';
+    if (/оригин|почт|бумаж/.test(s)) return 'originals';
+    if (/этрн|эпд|электрон/.test(s)) return 'etrn';
+    if (/сч[её]т|акт|упд/.test(s)) return 'invoice';
+    return null;
+  }
+
+  function parseCsv(text) {
+    text = String(text || '').replace(/^﻿/, '');
+    const first = text.split(/\r?\n/)[0] || '';
+    const cnt = (ch) => (first.match(new RegExp('\\' + ch, 'g')) || []).length;
+    const delim = [';', '\t', ','].sort((a, b) => cnt(b) - cnt(a))[0];
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+      else if (c === '"') q = true;
+      else if (c === delim) { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    if (!rows.length) return { trips: [], errors: ['файл пустой'], warnings: [] };
+    const rawHead = rows.shift();
+    const head = rawHead.map(mapHeader);
+    const errors = [], warnings = [];
+    const unknown = rawHead.filter((h, i) => h.trim() && !head[i]);
+    if (unknown.length) warnings.push('не распознаны колонки: ' + unknown.join(', ') + ' — они пропущены');
+    if (!head.includes('customer')) errors.push('нет колонки с заказчиком (например «Заказчик» или customer)');
+    if (!head.includes('unloadDate')) errors.push('нет колонки с датой выгрузки (например «Дата выгрузки» или unloadDate)');
+    if (!head.includes('amount')) errors.push('нет колонки с суммой (например «Сумма» или amount)');
+    if (errors.length) return { trips: [], errors, warnings };
+    let defaultedBase = 0, defaultedTerm = 0;
+    const stamp = Date.now().toString(36);
+    const trips = rows.filter(r => r.some(x => String(x).trim())).map((r, idx) => {
+      const line = idx + 2, o = {};
+      head.forEach((f, i) => { if (f) o[f] = String(r[i] ?? '').trim(); });
+      const t = { id: 'imp' + stamp + '_' + idx, payments: [] };
+      for (const f of ['customer', 'customerInn', 'orderNo', 'route', 'docsTrack', 'note']) if (o[f]) t[f] = o[f];
+      for (const f of ['orderDate', 'loadDate', 'unloadDate', 'baseEventDate', 'docsSentDate', 'claimSentDate']) {
+        if (!o[f]) continue;
+        const d = normDate(o[f]);
+        if (parse(d)) t[f] = d; else errors.push('строка ' + line + ': не понял дату «' + o[f] + '» в колонке ' + f);
+      }
+      const amt = normNum(o.amount);
+      if (!(amt > 0)) errors.push('строка ' + line + ': сумма «' + (o.amount || '') + '» не число');
+      t.amount = amt > 0 ? amt : 0;
+      const td = o.termDays ? normNum(o.termDays) : NaN;
+      if (isFinite(td) && td >= 0) t.termDays = Math.round(td); else { t.termDays = 0; defaultedTerm++; }
+      t.termType = /cal|кал/i.test(o.termType || '') ? 'calendar' : 'bank';
+      const be = normBaseEvent(o.baseEvent);
+      if (be) t.baseEvent = be; else { t.baseEvent = 'unload'; defaultedBase++; }
+      if (o.docsTransitDays) t.docsTransitDays = normNum(o.docsTransitDays) || 7;
+      if (o.penaltyPct) { const p = normNum(o.penaltyPct); if (p > 0) t.penaltyPct = p; }
+      if (o.paidAmount) {
+        const pa = normNum(o.paidAmount), pd = normDate(o.paidDate);
+        if (pa > 0) t.payments.push({ amount: pa, date: parse(pd) ? pd : (t.unloadDate || '') });
+      }
+      if (!t.customer) errors.push('строка ' + line + ': не указан заказчик');
+      if (!o.unloadDate) errors.push('строка ' + line + ': нет даты выгрузки');
+      return t;
+    });
+    if (defaultedBase) warnings.push(defaultedBase + ' рейс(ов) без условия «срок от» — считаю от выгрузки, проверьте');
+    if (defaultedTerm) warnings.push(defaultedTerm + ' рейс(ов) без срока оплаты — поставлен 0 дней, проверьте');
+    return { trips, errors, warnings };
+  }
+
+  /** Ключ для поиска дублей при повторном импорте */
+  function tripKey(t) { return [(t.customerInn || t.customer || '').toLowerCase().trim(), (t.orderNo || '').trim(), t.unloadDate || '', Number(t.amount) || 0].join('|'); }
+
+  function validateTrip(t) {
+    const e = [];
+    if (!t.customer || !t.customer.trim()) e.push('Укажите заказчика');
+    if (!(Number(t.amount) > 0)) e.push('Сумма должна быть больше нуля');
+    if (!t.unloadDate || !parse(t.unloadDate)) e.push('Укажите дату выгрузки');
+    if (!(Number(t.termDays) >= 0) || Number(t.termDays) > 365) e.push('Срок оплаты — от 0 до 365 дней');
+    if (t.customerInn && !/^\d{10}(\d{2})?$/.test(t.customerInn.trim())) e.push('ИНН — 10 или 12 цифр');
+    for (const f of ['loadDate', 'baseEventDate', 'docsSentDate', 'claimSentDate', 'orderDate'])
+      if (t[f] && !parse(t[f])) e.push('Неверная дата: ' + f);
+    if (t.loadDate && t.unloadDate && parse(t.loadDate) && parse(t.unloadDate) && t.loadDate > t.unloadDate) e.push('Дата погрузки позже выгрузки');
+    return e;
+  }
+
+  return { HOLIDAYS, BASE_EVENTS, DEFAULT_LADDER, CSV_FIELDS, parse, fmt, addDays, diffDays, isWorkingDay, calendarCovers, addWorkingDays, shiftToWorking,
+    computeDue, paidSum, debt, tripStatus, interest395, interest395Trip, contractPenalty, limitationDate, courtAllowedDate, nextAction,
+    customerStats, summary, claimText, reminderText, toIcs, toCsv, parseCsv, tripKey, normDate, normNum, validateTrip, money, ruDate };
+});
+
+</script>
+<script>
+/* «Рейс оплачен» — интерфейс. Зависит от core.js (window.Core). */
+(function () {
+  'use strict';
+  const C = window.Core;
+  const $ = (id) => document.getElementById(id);
+  const KEY = 'reys-oplachen:v1';
+
+  function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  const TODAY = (new URLSearchParams(location.search).get('today')) || todayStr();
+  const rel = (n) => C.addDays(TODAY, n);
+
+  // ---------- хранилище ----------
+  function load() { try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Не удалось сохранить в браузере — сделайте экспорт CSV'); } }
+
+  function demoTrips() {
+    return [
+      { id: 'd1', demo: true, customer: 'ООО «СтройМаркет»', customerInn: '6234000001', orderNo: '418', orderDate: rel(-48), route: 'Рязань — Москва (Южные ворота)', loadDate: rel(-45), unloadDate: rel(-44), amount: 68000, termDays: 10, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-36), docsSentDate: rel(-42), docsTrack: 'СДЭК 1029384756', docsTransitDays: 7, payments: [] },
+      { id: 'd2', demo: true, customer: 'ООО «АгроЛогистик»', customerInn: '7705000002', orderNo: 'А-77/2', orderDate: rel(-30), route: 'Тула — Санкт-Петербург', loadDate: rel(-28), unloadDate: rel(-26), amount: 142000, termDays: 30, termType: 'bank', baseEvent: 'scans', baseEventDate: rel(-24), docsSentDate: rel(-25), payments: [{ amount: 50000, date: rel(-5) }] },
+      { id: 'd3', demo: true, customer: 'ИП Соколов А. В.', customerInn: '622900000003', orderNo: '15', orderDate: rel(-12), route: 'Рязань — Владимир', loadDate: rel(-10), unloadDate: rel(-9), amount: 31500, termDays: 5, termType: 'bank', baseEvent: 'unload', payments: [] },
+      { id: 'd4', demo: true, customer: 'ООО «ТК Меридиан»', customerInn: '7707000004', orderNo: 'М-2031', orderDate: rel(-9), route: 'Москва — Калуга', loadDate: rel(-7), unloadDate: rel(-6), amount: 54000, termDays: 7, termType: 'bank', baseEvent: 'originals', docsSentDate: rel(-1), docsTrack: 'Почта 39000012345678', docsTransitDays: 7, payments: [] },
+      { id: 'd5', demo: true, customer: 'ООО «ТК Меридиан»', customerInn: '7707000004', orderNo: 'М-1987', orderDate: rel(-70), route: 'Москва — Рязань', loadDate: rel(-68), unloadDate: rel(-67), amount: 47000, termDays: 7, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-58), docsSentDate: rel(-65), payments: [{ amount: 47000, date: rel(-40) }] },
+      { id: 'd6', demo: true, customer: 'ООО «Фермер Центр»', customerInn: '6200000006', orderNo: '7', orderDate: rel(-6), route: 'Рязань — Липецк', loadDate: rel(-4), unloadDate: rel(-3), amount: 39000, termDays: 3, termType: 'bank', baseEvent: 'unload', payments: [] },
+      { id: 'd7', demo: true, customer: 'ООО «АгроЛогистик»', customerInn: '7705000002', orderNo: 'А-61', orderDate: rel(-80), route: 'Тула — Москва', loadDate: rel(-78), unloadDate: rel(-77), amount: 58000, termDays: 30, termType: 'bank', baseEvent: 'scans', baseEventDate: rel(-75), payments: [{ amount: 58000, date: rel(-20) }] },
+      { id: 'd9', demo: true, customer: 'ООО «Окский Терминал»', customerInn: '6229000009', orderNo: 'ОТ-58', orderDate: rel(-8), route: 'Рязань — Ярославль', loadDate: rel(-6), unloadDate: rel(-5), amount: 47500, termDays: 15, termType: 'bank', baseEvent: 'originals', payments: [] },
+      { id: 'd8', demo: true, customer: 'ООО «ПромСнаб»', customerInn: '7710000008', orderNo: '2026/311', orderDate: rel(-120), route: 'Рязань — Нижний Новгород', loadDate: rel(-118), unloadDate: rel(-117), amount: 96000, termDays: 15, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-105), docsSentDate: rel(-114), payments: [], claimSentDate: rel(-35), penaltyPct: 0.1, penaltyCapPct: 10 },
+    ];
+  }
+
+  const DEFAULT_PROFILE = { name: '', inn: '', signer: '', contacts: '', bank: '' };
+  // Ключевая ставка ЦБ РФ (дата начала действия → %), источник: cbr.ru/hd_base/KeyRate, проверено 26.10.2026 (решение 23.10.2026 — 14% сохранена)
+  const DEFAULT_RATES = [
+    { from: '2024-01-01', rate: 16 }, { from: '2024-07-29', rate: 18 }, { from: '2024-09-16', rate: 19 }, { from: '2024-10-28', rate: 21 },
+    { from: '2025-06-09', rate: 20 }, { from: '2025-07-28', rate: 18 }, { from: '2025-09-15', rate: 17 }, { from: '2025-10-27', rate: 16.5 },
+    { from: '2025-12-22', rate: 16 }, { from: '2026-02-16', rate: 15.5 }, { from: '2026-03-23', rate: 15 }, { from: '2026-04-27', rate: 14.5 },
+    { from: '2026-06-22', rate: 14.25 }, { from: '2026-07-27', rate: 14 },
+  ];
+  let state = load() || { trips: demoTrips(), profile: { ...DEFAULT_PROFILE }, rates: DEFAULT_RATES.slice(), demo: true };
+  if (!state.rates || !state.rates.length || (state.rates.length === 1 && ['2026-07-27', '2026-09-12'].includes(state.rates[0].from) && state.rates[0].rate === 14)) state.rates = DEFAULT_RATES.slice(); // миграция со старой версии
+  let filter = 'open';
+  let editingId = null;
+
+  // ---------- утилиты UI ----------
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rub = (x) => C.money(x).replace(/,00$/, '') + ' ₽';
+  let toastTimer;
+  function track(goal) { try { if (window.ym && window.METRIKA_ID) window.ym(window.METRIKA_ID, 'reachGoal', goal); } catch (e) { /* статистика необязательна */ } }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600); }
+  function plural(n, a, b, c) { n = Math.abs(n) % 100; const n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
+  function tripsWord(n) { return n + ' ' + plural(n, 'рейс', 'рейса', 'рейсов'); }
+
+  // ---------- рендер ----------
+  function render() {
+    $('demoNote').hidden = !state.trips.some((t) => t.demo);
+    $('todayLbl').textContent = C.ruDate(TODAY);
+    const own = state.trips.filter((t) => !t.demo).length;
+    $('onboard').hidden = state.trips.length > 0;
+    $('backupNote').hidden = !(own >= 3 && (!state.lastBackup || C.addDays(state.lastBackup, 7) <= TODAY) && (!state.backupSnooze || state.backupSnooze <= TODAY));
+    $('metrikaNote').hidden = !window.METRIKA_ID;
+    const s = C.summary(state.trips, TODAY);
+    $('sDebt').textContent = rub(s.debt);
+    const open = state.trips.filter((t) => C.debt(t) > 0).length;
+    $('sDebtSub').textContent = tripsWord(open) + ' не оплачено';
+    $('sOver').textContent = rub(s.overdue);
+    const interest = state.trips.reduce((acc, t) => { const st = C.tripStatus(t, TODAY); return st.code === 'overdue' ? acc + C.interest395Trip(t, TODAY, state.rates).total : acc; }, 0);
+    $('sOverSub').textContent = s.overdueCount ? tripsWord(s.overdueCount) + ' · проценты ст. 395 ≈ ' + rub(interest) : 'нет просрочек';
+    $('sSoon').textContent = rub(s.soon);
+    $('sSoonSub').textContent = s.soonCount ? tripsWord(s.soonCount) : 'нет';
+    $('sWait').textContent = rub(s.waitDocs);
+    $('sWaitSub').textContent = s.waitDocsCount ? tripsWord(s.waitDocsCount) + ' · нет даты получения документов' : 'нет';
+    renderTrips(); renderCustomers();
+  }
+
+  function matches(t, q) {
+    if (!q) return true; q = q.toLowerCase();
+    return [t.customer, t.customerInn, t.route, t.orderNo, t.docsTrack].some((x) => String(x || '').toLowerCase().includes(q));
+  }
+  const ORDER = { overdue: 0, soon: 1, wait_docs: 2, waiting: 3, paid: 4 };
+
+  function renderTrips() {
+    const q = $('search').value.trim();
+    const rows = state.trips.map((t) => ({ t, st: C.tripStatus(t, TODAY) }))
+      .filter(({ t, st }) => matches(t, q) && (filter === 'all' || (filter === 'open' ? st.code !== 'paid' : st.code === filter)))
+      .sort((a, b) => (ORDER[a.st.code] - ORDER[b.st.code]) || ((b.st.overdueDays || 0) - (a.st.overdueDays || 0)) || String(a.st.due || '9').localeCompare(String(b.st.due || '9')));
+    const box = $('tripList');
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty">' + (state.trips.length ? 'Под этот фильтр рейсов нет.' : 'Рейсов пока нет. Нажмите «+ Рейс» или импортируйте CSV из Excel.') + '</div>';
+      return;
+    }
+    box.innerHTML = rows.map(({ t, st }) => {
+      const act = C.nextAction(t, TODAY);
+      const lim = C.limitationDate(t);
+      const limWarn = lim && st.code !== 'paid' && C.diffDays(TODAY, lim) <= 90;
+      const pillCls = st.code === 'overdue' ? 'overdue' : st.code === 'soon' ? 'soon' : st.code === 'paid' ? 'paid' : '';
+      const pillTxt = st.code === 'overdue' ? 'Просрочка ' + st.overdueDays + ' дн.' : st.label;
+      const dueTxt = st.due ? 'срок ' + C.ruDate(st.due) + (st.estimated ? ' (оценка)' : '') : esc(st.reason);
+      return '<button class="trip" data-id="' + esc(t.id) + '" data-s="' + st.code + '">' +
+        '<span class="stripe" aria-hidden="true"></span>' +
+        '<span class="trip-main"><span class="trip-title">' + esc(t.customer) + (t.orderNo ? ' <span class="muted">· заявка ' + esc(t.orderNo) + '</span>' : '') + '</span>' +
+        '<span class="trip-meta"><span>' + esc(t.route || 'маршрут не указан') + '</span><span>выгрузка ' + C.ruDate(t.unloadDate) + '</span><span>' + dueTxt + '</span></span>' +
+        (act ? '<span class="action-hint">→ ' + esc(act.title) + '</span>' : '') +
+        (limWarn ? '<span class="action-hint">Срок исковой давности (1 год) истекает примерно '  + C.ruDate(lim) + '</span>' : '') +
+        '</span>' +
+        '<span class="trip-side"><span class="amount">' + rub(st.code === 'paid' ? Number(t.amount) : st.debt) + '</span><span class="pill ' + pillCls + '">' + esc(pillTxt) + '</span></span>' +
+        '</button>';
+    }).join('');
+  }
+
+  function renderCustomers() {
+    const cs = C.customerStats(state.trips, TODAY);
+    const riskTxt = { high: '<span class="pill overdue">высокий</span>', mid: '<span class="pill soon">средний</span>', low: '<span class="pill paid">низкий</span>' };
+    $('custBody').innerHTML = cs.length ? cs.map((m) => '<tr><td>' + esc(m.name) + (m.inn ? '<div class="muted small num">ИНН ' + esc(m.inn) + '</div>' : '') + '</td>' +
+      '<td class="r num">' + m.trips + '</td><td class="r num">' + rub(m.debt) + '</td><td class="r num">' + (m.overdueDebt ? rub(m.overdueDebt) : '—') + '</td>' +
+      '<td class="r num">' + (m.maxOverdue ? m.maxOverdue + ' дн.' : '—') + '</td><td class="r num">' + (m.avgDelay == null ? '—' : m.avgDelay + ' дн.') + '</td><td>' + riskTxt[m.risk] + '</td></tr>').join('')
+      : '<tr><td colspan="7" class="muted">Заказчиков пока нет.</td></tr>';
+  }
+
+  // ---------- вкладки и фильтры ----------
+  document.querySelectorAll('nav.tabs button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    ['trips', 'customers', 'settings', 'help'].forEach((n) => { $('tab-' + n).hidden = n !== b.dataset.tab; });
+    if (b.dataset.tab === 'settings') fillProfile();
+  }));
+  document.querySelectorAll('#filters .chip').forEach((b) => b.addEventListener('click', () => {
+    filter = b.dataset.f;
+    document.querySelectorAll('#filters .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderTrips();
+  }));
+  $('search').addEventListener('input', renderTrips);
+  $('tripList').addEventListener('click', (e) => { const b = e.target.closest('.trip'); if (b) openView(b.dataset.id); });
+  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
+
+  // ---------- форма рейса ----------
+  const F = ['customer', 'customerInn', 'orderNo', 'orderDate', 'route', 'amount', 'loadDate', 'unloadDate', 'docsSentDate', 'docsTrack', 'docsTransitDays', 'termDays', 'termType', 'baseEvent', 'baseEventDate', 'penaltyPct', 'penaltyCapPct', 'claimSentDate', 'note'];
+  const fid = (f) => 'f' + f[0].toUpperCase() + f.slice(1);
+  $('fBaseEvent').innerHTML = Object.entries(C.BASE_EVENTS).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('');
+
+  function openForm(id) {
+    editingId = id || null;
+    const t = id ? state.trips.find((x) => x.id === id) : { termDays: 10, termType: 'bank', baseEvent: 'originals', docsTransitDays: 7, unloadDate: TODAY };
+    F.forEach((f) => { $(fid(f)).value = t[f] ?? ''; });
+    $('dlgTripTitle').textContent = id ? 'Редактировать рейс' : 'Новый рейс';
+    $('btnDelete').hidden = !id;
+    $('formErrors').hidden = true;
+    updateDuePreview();
+    $('dlgTrip').showModal();
+  }
+  function readForm() {
+    const t = {}; F.forEach((f) => { t[f] = $(fid(f)).value.trim(); });
+    ['amount', 'termDays', 'docsTransitDays', 'penaltyPct', 'penaltyCapPct'].forEach((f) => { t[f] = t[f] === '' ? '' : Number(String(t[f]).replace(',', '.')); });
+    return t;
+  }
+  function updateDuePreview() {
+    const t = readForm();
+    if (!t.unloadDate) { $('duePreview').textContent = ''; return; }
+    const d = C.computeDue(t);
+    $('duePreview').textContent = d.due ? 'Срок оплаты: ' + C.ruDate(d.due) + (d.estimated ? ' — оценка, ' + d.reason : '') : 'Срок пока не начался: ' + d.reason.replace(/^срок не начался: /, '') + '. Укажите дату события или дату отправки документов.';
+  }
+  F.forEach((f) => $(fid(f)).addEventListener('input', updateDuePreview));
+  $('tripForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = readForm();
+    const errs = C.validateTrip(t);
+    if (errs.length) { $('formErrors').innerHTML = errs.map((x) => '<li>' + esc(x) + '</li>').join(''); $('formErrors').hidden = false; return; }
+    if (editingId) { const i = state.trips.findIndex((x) => x.id === editingId); state.trips[i] = { ...state.trips[i], ...t, demo: state.trips[i].demo }; }
+    else { state.trips.push({ ...t, id: 't' + Date.now().toString(36), payments: [] }); track('trip_add'); }
+    save(); render(); $('dlgTrip').close(); toast(editingId ? 'Рейс сохранён' : 'Рейс добавлен');
+  });
+  $('btnDelete').addEventListener('click', () => {
+    const b = $('btnDelete');
+    if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Точно удалить? Нажмите ещё раз'; setTimeout(() => { b.dataset.confirm = ''; b.textContent = 'Удалить рейс'; }, 4000); return; }
+    state.trips = state.trips.filter((x) => x.id !== editingId); b.dataset.confirm = ''; b.textContent = 'Удалить рейс';
+    save(); render(); $('dlgTrip').close(); toast('Рейс удалён');
+  });
+  $('btnAdd').addEventListener('click', () => openForm());
+
+  // ---------- карточка рейса ----------
+  function openView(id) {
+    const t = state.trips.find((x) => x.id === id); if (!t) return;
+    const st = C.tripStatus(t, TODAY);
+    const act = C.nextAction(t, TODAY);
+    const i395 = st.code === 'overdue' ? C.interest395Trip(t, TODAY, state.rates) : null;
+    const pen = st.code === 'overdue' ? C.contractPenalty(st.debt, st.overdueDays, Number(t.penaltyPct) || 0, Number(t.penaltyCapPct) || 0) : 0;
+    const lim = C.limitationDate(t);
+    $('viewTitle').textContent = t.customer + (t.orderNo ? ' · заявка ' + t.orderNo : '');
+    const pays = (t.payments || []).map((p, i) => '<li class="num">' + C.ruDate(p.date) + ' — ' + rub(p.amount) + ' <button class="ghost small danger" data-delpay="' + i + '">убрать</button></li>').join('');
+    $('viewBody').innerHTML =
+      '<dl class="kv">' +
+      '<dt>Статус</dt><dd><span class="pill ' + (st.code === 'overdue' ? 'overdue' : st.code === 'soon' ? 'soon' : st.code === 'paid' ? 'paid' : '') + '">' + esc(st.code === 'overdue' ? 'Просрочка ' + st.overdueDays + ' дн.' : st.label) + '</span></dd>' +
+      '<dt>Сумма / долг</dt><dd class="num">' + rub(Number(t.amount)) + ' / ' + rub(C.debt(t)) + '</dd>' +
+      '<dt>Маршрут</dt><dd>' + esc(t.route || '—') + '</dd>' +
+      '<dt>Выгрузка</dt><dd class="num">' + C.ruDate(t.unloadDate) + '</dd>' +
+      '<dt>Условие оплаты</dt><dd>' + esc(t.termDays) + ' ' + (t.termType === 'calendar' ? 'календарных' : 'банковских') + ' дн. с момента: ' + esc(C.BASE_EVENTS[t.baseEvent]) + (t.baseEventDate ? ' (' + C.ruDate(t.baseEventDate) + ')' : '') + '</dd>' +
+      '<dt>Документы</dt><dd>' + (t.docsSentDate ? 'отправлены ' + C.ruDate(t.docsSentDate) + (t.docsTrack ? ', ' + esc(t.docsTrack) : '') : '<span style="color:var(--bad)">дата отправки не указана</span>') + '</dd>' +
+      '<dt>Срок оплаты</dt><dd class="num">' + (st.due ? C.ruDate(st.due) + (st.estimated ? ' (оценка: ' + esc(st.reason) + ')' : '') : esc(st.reason)) + '</dd>' + (C.computeDue(t).calendarWarning ? '<dd style="grid-column:2;color:var(--warn)">' + esc(C.computeDue(t).calendarWarning) + '</dd>' : '') +
+      (i395 ? '<dt>Проценты ст. 395</dt><dd class="num">' + rub(i395.total) + ' за ' + i395.days + ' дн.</dd>' : '') +
+      (pen ? '<dt>Неустойка по заявке</dt><dd class="num">' + rub(pen) + '</dd>' : '') +
+      (t.claimSentDate ? '<dt>Претензия</dt><dd>направлена ' + C.ruDate(t.claimSentDate) + ', иск — не раньше ' + C.ruDate(C.courtAllowedDate(t.claimSentDate)) + '</dd>' : '') +
+      (lim ? '<dt>Исковая давность</dt><dd class="num">ориентир до ' + C.ruDate(lim) + ' (1 год по ст. 797 ГК, ориентир без учёта приостановки на претензию)</dd>' : '') +
+      (act ? '<dt>Что делать</dt><dd><b>' + esc(act.title) + '</b></dd>' : '') +
+      '</dl>' +
+      '<fieldset><legend>Оплаты</legend>' + (pays ? '<ul style="margin:0;padding-left:18px">' + pays + '</ul>' : '<p class="hint">Оплат пока нет.</p>') +
+      '<div class="grid2"><label>Сумма, руб.<input id="payAmount" type="number" min="0" step="0.01" value="' + (C.debt(t) || '') + '"></label><label>Дата<input id="payDate" type="date" value="' + TODAY + '"></label></div>' +
+      '<div class="toolbar"><button class="primary" id="btnAddPay">Отметить оплату</button>' + (!t.baseEventDate && t.baseEvent !== 'unload' ? '<button id="btnDocsGot">Заказчик получил документы сегодня</button>' : '') + '</div></fieldset>';
+    $('viewFoot').innerHTML = '<button id="btnEdit">Редактировать</button><span style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">' +
+      (st.code !== 'paid' ? '<button id="btnRemind">Текст напоминания</button>' : '') +
+      (st.code === 'overdue' ? '<button class="primary" id="btnClaim">Претензия</button>' : '') + '</span>';
+    $('btnEdit').onclick = () => { $('dlgView').close(); openForm(id); };
+    $('btnAddPay').onclick = () => {
+      const a = Number($('payAmount').value), d = $('payDate').value;
+      if (!(a > 0) || !C.parse(d)) { toast('Укажите сумму больше нуля и дату'); return; }
+      (t.payments = t.payments || []).push({ amount: a, date: d }); save(); render(); openView(id); toast('Оплата отмечена');
+    };
+    const dg = $('btnDocsGot'); if (dg) dg.onclick = () => { t.baseEventDate = TODAY; save(); render(); openView(id); toast('Отсчёт срока начат с сегодняшнего дня'); };
+    $('viewBody').querySelectorAll('[data-delpay]').forEach((b) => { b.onclick = () => { t.payments.splice(Number(b.dataset.delpay), 1); save(); render(); openView(id); }; });
+    const br = $('btnRemind'); if (br) br.onclick = () => { track('remind_open'); showText('Напоминание об оплате', C.reminderText(t, state.profile, TODAY), 'Отправьте в мессенджер или по почте контактному лицу заказчика.', '', 'napominanie.txt'); };
+    const bc = $('btnClaim'); if (bc) bc.onclick = () => {
+      track('claim_open');
+      const c = C.claimText(t, state.profile, TODAY, state.rates);
+      const warn = [!state.profile.name ? 'Заполните реквизиты во вкладке «Реквизиты и ставка».' : '', c.warning].filter(Boolean).join(' ');
+      showText('Претензия', c.text + (c.calc ? '\n\n' + c.calc : ''), 'Проверьте данные заявки. Отправьте почтой с описью вложения или по ЭДО, затем укажите дату отправки в рейсе — приложение посчитает, когда можно идти в суд.', warn, 'pretenziya-' + (t.orderNo || t.id) + '.txt');
+    };
+    if (!$('dlgView').open) $('dlgView').showModal();
+  }
+
+  // ---------- текст / копирование / скачивание ----------
+  let textFile = 'text.txt';
+  function showText(title, text, hint, warn, file) {
+    $('textTitle').textContent = title; $('textArea').value = text; $('textHint').textContent = hint || ''; $('textWarn').textContent = warn || ''; textFile = file || 'text.txt';
+    $('dlgText').showModal();
+  }
+  $('btnCopyText').addEventListener('click', () => {
+    const ta = $('textArea');
+    const fallback = () => { ta.focus(); ta.select(); toast('Текст выделен — нажмите Ctrl+C'); };
+    try { navigator.clipboard.writeText(ta.value).then(() => toast('Скопировано'), fallback); } catch (e) { fallback(); }
+  });
+  function download(name, content, type) {
+    try {
+      const blob = new Blob([content], { type: type || 'text/plain;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      return true;
+    } catch (e) { return false; }
+  }
+  $('btnDownloadText').addEventListener('click', () => { download(textFile, $('textArea').value); toast('Если файл не скачался — используйте «Копировать»'); });
+
+  // ---------- импорт / экспорт ----------
+  $('csvCols').textContent = C.CSV_FIELDS.join(';');
+  $('btnImport').addEventListener('click', () => { $('impErrors').hidden = true; $('dlgImport').showModal(); });
+  $('btnExport').addEventListener('click', () => { $('impErrors').hidden = true; $('dlgImport').showModal(); });
+  $('csvFile').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      // Excel в Windows часто сохраняет CSV в кодировке Windows-1251: пробуем UTF-8 строго, иначе 1251
+      let txt;
+      try { txt = new TextDecoder('utf-8', { fatal: true }).decode(r.result); }
+      catch (err) { try { txt = new TextDecoder('windows-1251').decode(r.result); toast('Файл в кодировке Windows-1251 — перекодирован'); } catch (e2) { txt = new TextDecoder('utf-8').decode(r.result); } }
+      $('csvText').value = txt;
+    };
+    r.readAsArrayBuffer(f);
+  });
+  $('btnDoImport').addEventListener('click', () => {
+    const txt = $('csvText').value.trim();
+    if (!txt) { toast('Выберите файл или вставьте CSV'); return; }
+    let res; try { res = C.parseCsv(txt); } catch (e) { res = { trips: [], errors: ['не удалось прочитать CSV: ' + e.message], warnings: [] }; }
+    const good = res.trips.filter((t) => t.customer && C.parse(t.unloadDate || '') && Number(t.amount) > 0);
+    const existing = new Set(state.trips.filter((t) => !t.demo).map(C.tripKey));
+    const fresh = good.filter((t) => !existing.has(C.tripKey(t)));
+    const dupl = good.length - fresh.length;
+    const msgs = res.errors.slice(0, 10).concat(res.errors.length > 10 ? ['…и ещё ' + (res.errors.length - 10) + ' ошибок'] : [])
+      .concat((res.warnings || []).map((w) => 'Внимание: ' + w)).concat(dupl ? ['Пропущено дублей (уже есть в списке): ' + dupl] : []);
+    $('impErrors').innerHTML = msgs.map((x) => '<li>' + esc(x) + '</li>').join(''); $('impErrors').hidden = !msgs.length;
+    if (!fresh.length) { if (!msgs.length) toast('Не найдено рейсов с заказчиком, суммой и датой выгрузки'); return; }
+    state.trips = state.trips.filter((t) => !t.demo).concat(fresh); save(); render();
+    if (!msgs.length) $('dlgImport').close();
+    toast('Добавлено: ' + tripsWord(fresh.length) + (res.errors.length ? ' · строки с ошибками пропущены' : ''));
+  });
+  $('btnTemplate').addEventListener('click', () => {
+    $('csvText').value = 'Заказчик;ИНН;№ заявки;Маршрут;Дата выгрузки;Сумма;Срок оплаты;Тип дней;Срок от;Документы отправлены;Трек;Оплачено;Дата оплаты\nООО «Пример»;7700000000;125;Рязань — Москва;03.10.2026;55 000;10;банковские;оригиналы;05.10.2026;СДЭК 123;0;';
+  });
+  $('btnCsvOut').addEventListener('click', () => { state.lastBackup = TODAY; save(); render(); track('backup'); const csv = C.toCsv(state.trips); download('reysy-' + TODAY + '.csv', csv, 'text/csv;charset=utf-8'); showText('CSV для Excel', csv, 'Если файл не скачался автоматически, скопируйте текст и сохраните как reysy.csv (кодировка UTF-8).', '', 'reysy-' + TODAY + '.csv'); });
+  $('btnIcsOut').addEventListener('click', () => { const ics = C.toIcs(state.trips, TODAY); download('sroki-oplat.ics', ics, 'text/calendar;charset=utf-8'); showText('Сроки оплат для календаря', ics, 'Если файл не скачался, скопируйте текст, сохраните как sroki-oplat.ics и откройте на телефоне — сроки появятся в календаре.', '', 'sroki-oplat.ics'); });
+
+  $('btnClearDemo').addEventListener('click', () => { track('demo_clear'); state.trips = state.trips.filter((t) => !t.demo); state.demo = false; save(); render(); toast('Пример удалён. Добавьте свой первый рейс'); });
+
+  // ---------- реквизиты и ставка ----------
+  function fillProfile() {
+    $('pName').value = state.profile.name || ''; $('pInn').value = state.profile.inn || ''; $('pSigner').value = state.profile.signer || '';
+    $('pContacts').value = state.profile.contacts || ''; $('pBank').value = state.profile.bank || '';
+    renderRates();
+  }
+  function renderRates() {
+    $('ratesBox').innerHTML = state.rates.map((r, i) => '<div class="grid2" style="align-items:end"><label>Действует с<input type="date" data-rf="' + i + '" value="' + esc(r.from) + '"></label><label>Ставка, %<input type="number" step="0.01" min="0" data-rr="' + i + '" value="' + esc(r.rate) + '"></label>' + (state.rates.length > 1 ? '<button class="ghost danger" data-rd="' + i + '">Убрать</button>' : '') + '</div>').join('');
+    $('ratesBox').querySelectorAll('[data-rd]').forEach((b) => { b.onclick = () => { state.rates.splice(Number(b.dataset.rd), 1); renderRates(); }; });
+  }
+  $('btnAddRate').addEventListener('click', () => { readRates(); state.rates.push({ from: TODAY, rate: state.rates[state.rates.length - 1]?.rate ?? 14 }); renderRates(); });
+  function readRates() {
+    state.rates = state.rates.map((r, i) => ({ from: $('ratesBox').querySelector('[data-rf="' + i + '"]')?.value || r.from, rate: Number($('ratesBox').querySelector('[data-rr="' + i + '"]')?.value ?? r.rate) }));
+  }
+  $('btnSaveProfile').addEventListener('click', () => {
+    const inn = $('pInn').value.trim();
+    if (inn && !/^\d{10}(\d{2})?$/.test(inn)) { toast('ИНН — 10 или 12 цифр'); return; }
+    readRates();
+    if (state.rates.some((r) => !C.parse(r.from) || !(r.rate >= 0))) { toast('Проверьте даты и ставки'); return; }
+    state.profile = { name: $('pName').value.trim(), inn, signer: $('pSigner').value.trim(), contacts: $('pContacts').value.trim(), bank: $('pBank').value.trim() };
+    save(); render(); toast('Сохранено');
+  });
+
+  // ---------- резервная копия, обратная связь, установка ----------
+  $('btnBackup').addEventListener('click', () => $('btnCsvOut').click());
+  $('btnBackupLater').addEventListener('click', () => { state.backupSnooze = C.addDays(TODAY, 3); save(); render(); });
+  $('btnFeedback').addEventListener('click', () => track('feedback'));
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; $('btnInstall').hidden = false; });
+  $('btnInstall').addEventListener('click', async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    const r = await deferredInstall.userChoice.catch(() => null);
+    if (r && r.outcome === 'accepted') track('pwa_install');
+    deferredInstall = null; $('btnInstall').hidden = true;
+  });
+  if (window.REYS_PWA && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* офлайн-режим необязателен */ });
+  }
+
+  render();
+})();
+
+</script>
+
+</body>
+</html>
