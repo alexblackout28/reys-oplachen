@@ -1,5 +1,5 @@
 // Офлайн-режим «Рейс оплачен»: сначала сеть (всегда свежая версия), без сети — сохранённая копия.
-const CACHE = 'reys-202610261419';
+const CACHE = 'reys-202610261455';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
