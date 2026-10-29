@@ -144,6 +144,16 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 .backup-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 footer a { color: inherit; }
+details.more { border: 1px dashed var(--line); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 12px; }
+details.more > summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; font-weight: 500; }
+details.more[open] > summary { margin-bottom: 12px; }
+details.more fieldset + fieldset { margin-top: 12px; }
+/* Старые iPhone (Safari < 15.4) не знают <dialog>: окна показываем на весь экран */
+dialog:not([open]) { display: none; }
+.no-dialog dialog[open] { display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; border-radius: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; z-index: 60; }
+.no-dialog body.dlg-open { overflow: hidden; }
+/* Отступы между кнопками для Safari < 14.5 (нет gap у flex) */
+@supports not (aspect-ratio: 1) { .actions > *, .toolbar > *, .demo-note > *, .backup-note > * { margin: 0 6px 6px 0; } }
 </style>
 
 </head>
@@ -254,7 +264,7 @@ footer a { color: inherit; }
   <footer>
     <span>Ваши рейсы хранятся только в этом браузере на вашем устройстве и никуда не передаются. Резервная копия — «Экспорт → Все рейсы в CSV», восстановление — «Импорт CSV».</span>
     <span id="metrikaNote" hidden>Сайт считает анонимную статистику посещений (Яндекс.Метрика) — без содержимого ваших рейсов.</span>
-    <span>Вопросы и предложения: <a href="https://t.me/alnelise" target="_blank" rel="noopener">Telegram @alnelise</a>. Бесплатная версия для проверки идеи, 0.2, октябрь 2026.</span>
+    <span>Вопросы и предложения: <a href="https://t.me/alnelise" target="_blank" rel="noopener">Telegram @alnelise</a>. Бесплатная версия для проверки идеи, 0.3, октябрь 2026.</span>
   </footer>
 </div>
 
@@ -263,39 +273,50 @@ footer a { color: inherit; }
     <div class="dlg-head"><h2 id="dlgTripTitle">Новый рейс</h2><button type="button" class="ghost" data-close>Закрыть</button></div>
     <div class="dlg-body">
       <ul class="errors" id="formErrors" hidden></ul>
-      <fieldset><legend>Заказчик и заявка</legend>
+      <fieldset><legend>Главное</legend>
         <div class="grid2">
           <label>Заказчик*<input id="fCustomer" required placeholder="ООО «Название»"></label>
-          <label>ИНН заказчика<input id="fCustomerInn" inputmode="numeric"></label>
-          <label>№ заявки<input id="fOrderNo"></label>
-          <label>Дата заявки<input id="fOrderDate" type="date"></label>
-          <label>Маршрут<input id="fRoute" placeholder="Рязань — Москва"></label>
-          <label>Сумма, руб.*<input id="fAmount" type="number" min="0" step="0.01" required></label>
-        </div>
-      </fieldset>
-      <fieldset><legend>Рейс и документы</legend>
-        <div class="grid2">
-          <label>Дата погрузки<input id="fLoadDate" type="date"></label>
+          <label>Сумма, руб.*<input id="fAmount" type="number" inputmode="decimal" min="0" step="0.01" required></label>
           <label>Дата выгрузки*<input id="fUnloadDate" type="date" required></label>
-          <label>Документы отправлены<input id="fDocsSentDate" type="date"></label>
-          <label>Трек / № отправления<input id="fDocsTrack" placeholder="Почта, СДЭК, ЭДО"></label>
-          <label>Дней доставки оригиналов (оценка)<input id="fDocsTransitDays" type="number" min="0" max="60" value="7"></label>
         </div>
       </fieldset>
       <fieldset><legend>Условия оплаты из заявки</legend>
         <div class="grid2">
-          <label>Срок, дней*<input id="fTermDays" type="number" min="0" max="365" required value="10"></label>
+          <label>Срок, дней*<input id="fTermDays" type="number" inputmode="numeric" min="0" max="365" required value="10"></label>
           <label>Каких дней<select id="fTermType"><option value="bank">банковских (рабочих)</option><option value="calendar">календарных</option></select></label>
           <label>Считать с момента<select id="fBaseEvent"></select></label>
           <label>Дата этого события (если известна)<input id="fBaseEventDate" type="date"></label>
-          <label>Неустойка из заявки, % в день<input id="fPenaltyPct" type="number" min="0" step="0.01" placeholder="например 0,1"></label>
-          <label>Предел неустойки, % от суммы<input id="fPenaltyCapPct" type="number" min="0" step="1" placeholder="0 — без предела"></label>
+          <label>Документы отправлены<input id="fDocsSentDate" type="date"></label>
         </div>
         <p class="hint" id="duePreview"></p>
       </fieldset>
-      <fieldset><legend>Претензия</legend>
-        <div class="grid2"><label>Претензия направлена<input id="fClaimSentDate" type="date"></label><label>Заметка<input id="fNote"></label></div>
-      </fieldset>
+      <details class="more" id="formMore">
+        <summary>Дополнительно — необязательно: ИНН, № заявки, маршрут, трек, неустойка, претензия</summary>
+        <fieldset><legend>Заявка</legend>
+          <div class="grid2">
+            <label>ИНН заказчика<input id="fCustomerInn" inputmode="numeric"></label>
+            <label>№ заявки<input id="fOrderNo"></label>
+            <label>Дата заявки<input id="fOrderDate" type="date"></label>
+            <label>Маршрут<input id="fRoute" placeholder="Рязань — Москва"></label>
+            <label>Дата погрузки<input id="fLoadDate" type="date"></label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Документы</legend>
+          <div class="grid2">
+            <label>Трек / № отправления<input id="fDocsTrack" placeholder="Почта, СДЭК, ЭДО"></label>
+            <label>Дней доставки оригиналов (оценка)<input id="fDocsTransitDays" type="number" inputmode="numeric" min="0" max="60" value="7"></label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Неустойка из заявки</legend>
+          <div class="grid2">
+            <label>Неустойка, % в день<input id="fPenaltyPct" type="number" inputmode="decimal" min="0" step="0.01" placeholder="например 0,1"></label>
+            <label>Предел неустойки, % от суммы<input id="fPenaltyCapPct" type="number" inputmode="numeric" min="0" step="1" placeholder="0 — без предела"></label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Претензия и заметка</legend>
+          <div class="grid2"><label>Претензия направлена<input id="fClaimSentDate" type="date"></label><label>Заметка<input id="fNote"></label></div>
+        </fieldset>
+      </details>
     </div>
     <div class="dlg-foot">
       <button type="button" class="ghost danger" id="btnDelete" hidden>Удалить рейс</button>
@@ -334,132 +355,170 @@ footer a { color: inherit; }
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script>
-/*
- * «Рейс оплачен» — ядро расчётов (без DOM).
- * Работает в браузере (window.Core) и в Node (require).
- * Все даты — строки 'YYYY-MM-DD' (локальные, без часового пояса).
- */
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+(function(root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
   else root.Core = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
-  'use strict';
-
-  // --- Производственный календарь (пятидневка) ---------------------------
-  // Нерабочие ДНИ, выпадающие на будни (праздники + переносы).
-  // 2026: ст.112 ТК РФ + Пост. Правительства РФ от 24.09.2025 № 1466 (источник: glavkniga.ru/situations/k518906)
-  // 2027: Пост. Правительства РФ от 17.09.2026 № 1187 (источник: buh.ru/news/utverzhden-poryadok-perenosa-vykhodnykh-dney-v-2027-godu.html)
-  const HOLIDAYS = new Set([
+})(typeof self !== "undefined" ? self : this, function() {
+  "use strict";
+  const HOLIDAYS = /* @__PURE__ */ new Set([
     // 2026
-    '2026-01-01', '2026-01-02', '2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09',
-    '2026-02-23', '2026-03-09', '2026-05-01', '2026-05-11', '2026-06-12', '2026-11-04', '2026-12-31',
+    "2026-01-01",
+    "2026-01-02",
+    "2026-01-05",
+    "2026-01-06",
+    "2026-01-07",
+    "2026-01-08",
+    "2026-01-09",
+    "2026-02-23",
+    "2026-03-09",
+    "2026-05-01",
+    "2026-05-11",
+    "2026-06-12",
+    "2026-11-04",
+    "2026-12-31",
     // 2027
-    '2027-01-01', '2027-01-04', '2027-01-05', '2027-01-06', '2027-01-07', '2027-01-08',
-    '2027-02-22', '2027-02-23', '2027-03-08', '2027-05-03', '2027-05-10', '2027-06-14',
-    '2027-11-04', '2027-11-05', '2027-12-31',
+    "2027-01-01",
+    "2027-01-04",
+    "2027-01-05",
+    "2027-01-06",
+    "2027-01-07",
+    "2027-01-08",
+    "2027-02-22",
+    "2027-02-23",
+    "2027-03-08",
+    "2027-05-03",
+    "2027-05-10",
+    "2027-06-14",
+    "2027-11-04",
+    "2027-11-05",
+    "2027-12-31"
   ]);
-  // Рабочие субботы/воскресенья (переносы).
-  const WORKING_WEEKENDS = new Set(['2027-02-20']); // 2027: выходной с сб 20.02 перенесён на пн 22.02 (Пост. № 1187)
+  const WORKING_WEEKENDS = /* @__PURE__ */ new Set(["2027-02-20"]);
   const CALENDAR_YEARS = [2026, 2027];
-
   function parse(s) {
     if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-    const [y, m, d] = s.split('-').map(Number);
+    const [y, m, d] = s.split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
     return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? dt : null;
   }
-  function fmt(dt) { return dt.toISOString().slice(0, 10); }
-  function addDays(s, n) { const d = parse(s); d.setUTCDate(d.getUTCDate() + n); return fmt(d); }
-  function diffDays(a, b) { return Math.round((parse(b) - parse(a)) / 86400000); } // b - a
-  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+  function fmt(dt) {
+    return dt.toISOString().slice(0, 10);
+  }
+  function addDays(s, n) {
+    const d = parse(s);
+    d.setUTCDate(d.getUTCDate() + n);
+    return fmt(d);
+  }
+  function diffDays(a, b) {
+    return Math.round((parse(b) - parse(a)) / 864e5);
+  }
+  function isLeap(y) {
+    return y % 4 === 0 && y % 100 !== 0 || y % 400 === 0;
+  }
   function isWorkingDay(s) {
     if (WORKING_WEEKENDS.has(s)) return true;
     const wd = parse(s).getUTCDay();
     if (wd === 0 || wd === 6) return false;
     return !HOLIDAYS.has(s);
   }
-  function calendarCovers(s) { return CALENDAR_YEARS.includes(parse(s).getUTCFullYear()); }
-
-  /** Прибавить n рабочих (банковских) дней: отсчёт со следующего дня после события. */
+  function calendarCovers(s) {
+    return CALENDAR_YEARS.includes(parse(s).getUTCFullYear());
+  }
   function addWorkingDays(s, n) {
     let cur = s, left = n;
-    while (left > 0) { cur = addDays(cur, 1); if (isWorkingDay(cur)) left--; }
+    while (left > 0) {
+      cur = addDays(cur, 1);
+      if (isWorkingDay(cur)) left--;
+    }
     return cur;
   }
-  /** Если срок выпал на нерабочий день — переносится на ближайший рабочий (ст. 193 ГК РФ). */
-  function shiftToWorking(s) { let cur = s; while (!isWorkingDay(cur)) cur = addDays(cur, 1); return cur; }
-
-  // --- Срок оплаты ------------------------------------------------------
+  function shiftToWorking(s) {
+    let cur = s;
+    while (!isWorkingDay(cur)) cur = addDays(cur, 1);
+    return cur;
+  }
   const BASE_EVENTS = {
-    unload: 'дата выгрузки',
-    scans: 'получение сканов документов заказчиком',
-    originals: 'получение оригиналов документов заказчиком',
-    etrn: 'подписание ЭТрН грузополучателем',
-    invoice: 'дата счёта/акта',
+    unload: "\u0434\u0430\u0442\u0430 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438",
+    scans: "\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435 \u0441\u043A\u0430\u043D\u043E\u0432 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C",
+    originals: "\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435 \u043E\u0440\u0438\u0433\u0438\u043D\u0430\u043B\u043E\u0432 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C",
+    etrn: "\u043F\u043E\u0434\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u042D\u0422\u0440\u041D \u0433\u0440\u0443\u0437\u043E\u043F\u043E\u043B\u0443\u0447\u0430\u0442\u0435\u043B\u0435\u043C",
+    invoice: "\u0434\u0430\u0442\u0430 \u0441\u0447\u0451\u0442\u0430/\u0430\u043A\u0442\u0430"
   };
-
-  /**
-   * Возвращает {due, estimated, baseDate, reason}
-   * trip: {unloadDate, termDays, termType:'bank'|'calendar', baseEvent, baseEventDate, docsSentDate, docsTransitDays}
-   */
   function computeDue(trip) {
+    var _a;
     const n = Number(trip.termDays) || 0;
-    let base = null, estimated = false, reason = '';
-    if (trip.baseEvent === 'unload') base = trip.unloadDate;
+    let base = null, estimated = false, reason = "";
+    if (trip.baseEvent === "unload") base = trip.unloadDate;
     else if (trip.baseEventDate) base = trip.baseEventDate;
-    else if (trip.baseEvent === 'originals' && trip.docsSentDate) {
-      base = addDays(trip.docsSentDate, Number(trip.docsTransitDays ?? 7));
-      estimated = true; reason = 'оригиналы в пути: дата получения оценена';
-    } else if ((trip.baseEvent === 'scans' || trip.baseEvent === 'invoice') && trip.docsSentDate) {
-      base = trip.docsSentDate; estimated = true; reason = 'дата получения не подтверждена — взята дата отправки';
+    else if (trip.baseEvent === "originals" && trip.docsSentDate) {
+      base = addDays(trip.docsSentDate, Number((_a = trip.docsTransitDays) != null ? _a : 7));
+      estimated = true;
+      reason = "\u043E\u0440\u0438\u0433\u0438\u043D\u0430\u043B\u044B \u0432 \u043F\u0443\u0442\u0438: \u0434\u0430\u0442\u0430 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u043E\u0446\u0435\u043D\u0435\u043D\u0430";
+    } else if ((trip.baseEvent === "scans" || trip.baseEvent === "invoice") && trip.docsSentDate) {
+      base = trip.docsSentDate;
+      estimated = true;
+      reason = "\u0434\u0430\u0442\u0430 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u043D\u0435 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0430 \u2014 \u0432\u0437\u044F\u0442\u0430 \u0434\u0430\u0442\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438";
     }
-    if (!base) return { due: null, estimated: false, baseDate: null, reason: 'срок не начался: нет даты события «' + (BASE_EVENTS[trip.baseEvent] || trip.baseEvent) + '»' };
-    let due = trip.termType === 'calendar' ? shiftToWorking(addDays(base, n)) : (n === 0 ? shiftToWorking(base) : addWorkingDays(base, n));
-    const calendarWarning = (!calendarCovers(base) || !calendarCovers(due)) ? 'производственный календарь задан только на ' + CALENDAR_YEARS.join('–') + ' гг.: праздники вне этих лет не учтены' : '';
+    if (!base) return { due: null, estimated: false, baseDate: null, reason: "\u0441\u0440\u043E\u043A \u043D\u0435 \u043D\u0430\u0447\u0430\u043B\u0441\u044F: \u043D\u0435\u0442 \u0434\u0430\u0442\u044B \u0441\u043E\u0431\u044B\u0442\u0438\u044F \xAB" + (BASE_EVENTS[trip.baseEvent] || trip.baseEvent) + "\xBB" };
+    let due = trip.termType === "calendar" ? shiftToWorking(addDays(base, n)) : n === 0 ? shiftToWorking(base) : addWorkingDays(base, n);
+    const calendarWarning = !calendarCovers(base) || !calendarCovers(due) ? "\u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 " + CALENDAR_YEARS.join("\u2013") + " \u0433\u0433.: \u043F\u0440\u0430\u0437\u0434\u043D\u0438\u043A\u0438 \u0432\u043D\u0435 \u044D\u0442\u0438\u0445 \u043B\u0435\u0442 \u043D\u0435 \u0443\u0447\u0442\u0435\u043D\u044B" : "";
     return { due, estimated, baseDate: base, reason, calendarWarning };
   }
-
-  // --- Оплаты и статусы -------------------------------------------------
-  function paidSum(trip) { return (trip.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0); }
-  function debt(trip) { return Math.max(0, Math.round(((Number(trip.amount) || 0) - paidSum(trip)) * 100) / 100); }
-  function lastPaymentDate(trip) { return (trip.payments || []).map(p => p.date).filter(Boolean).sort().pop() || null; }
-
-  /** status: paid | overdue | soon | waiting | wait_docs | draft */
+  function paidSum(trip) {
+    return (trip.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  }
+  function debt(trip) {
+    return Math.max(0, Math.round(((Number(trip.amount) || 0) - paidSum(trip)) * 100) / 100);
+  }
+  function lastPaymentDate(trip) {
+    return (trip.payments || []).map((p) => p.date).filter(Boolean).sort().pop() || null;
+  }
   function tripStatus(trip, today) {
     const d = computeDue(trip);
     const left = debt(trip);
     if (left <= 0 && (Number(trip.amount) || 0) > 0) {
       const lp = lastPaymentDate(trip);
-      return { code: 'paid', label: 'Оплачен', due: d.due, delayDays: d.due && lp ? Math.max(0, diffDays(d.due, lp)) : 0, debt: 0, estimated: d.estimated, reason: d.reason };
+      return { code: "paid", label: "\u041E\u043F\u043B\u0430\u0447\u0435\u043D", due: d.due, delayDays: d.due && lp ? Math.max(0, diffDays(d.due, lp)) : 0, debt: 0, estimated: d.estimated, reason: d.reason };
     }
-    if (!d.due) return { code: 'wait_docs', label: 'Срок не начался', due: null, debt: left, reason: d.reason };
+    if (!d.due) return { code: "wait_docs", label: "\u0421\u0440\u043E\u043A \u043D\u0435 \u043D\u0430\u0447\u0430\u043B\u0441\u044F", due: null, debt: left, reason: d.reason };
     const toDue = diffDays(today, d.due);
-    if (toDue < 0) return { code: 'overdue', label: 'Просрочен', due: d.due, overdueDays: -toDue, debt: left, estimated: d.estimated, reason: d.reason };
-    if (toDue <= 3) return { code: 'soon', label: toDue === 0 ? 'Срок сегодня' : 'Срок через ' + toDue + ' дн.', due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
-    return { code: 'waiting', label: 'Ждём оплату', due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
+    if (toDue < 0) return { code: "overdue", label: "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D", due: d.due, overdueDays: -toDue, debt: left, estimated: d.estimated, reason: d.reason };
+    if (toDue <= 3) return { code: "soon", label: toDue === 0 ? "\u0421\u0440\u043E\u043A \u0441\u0435\u0433\u043E\u0434\u043D\u044F" : "\u0421\u0440\u043E\u043A \u0447\u0435\u0440\u0435\u0437 " + toDue + " \u0434\u043D.", due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
+    return { code: "waiting", label: "\u0416\u0434\u0451\u043C \u043E\u043F\u043B\u0430\u0442\u0443", due: d.due, daysLeft: toDue, debt: left, estimated: d.estimated, reason: d.reason };
   }
-
-  // --- Проценты по ст. 395 ГК РФ -----------------------------------------
-  /**
-   * rates: [{from:'YYYY-MM-DD', rate: 14}] — ключевая ставка ЦБ, действует с даты from.
-   * Проценты начисляются со дня, следующего за последним днём срока оплаты, по дату расчёта включительно.
-   * База дней: фактическое число дней в году (365/366) — как в типовых калькуляторах.
-   */
   function interest395(amount, dueDate, calcDate, rates) {
     const start = addDays(dueDate, 1);
     if (diffDays(start, calcDate) < 0 || !(amount > 0)) return { total: 0, days: 0, rows: [] };
-    const rs = (rates || []).filter(r => r.from && r.rate >= 0).slice().sort((a, b) => a.from.localeCompare(b.from));
-    if (!rs.length) return { total: 0, days: 0, rows: [], warning: 'не задана ключевая ставка' };
-    let warning = rs[0].from > start ? 'ставка до ' + rs[0].from + ' не задана — для ранних дней применена первая ставка из таблицы' : '';
+    const rs = (rates || []).filter((r) => r.from && r.rate >= 0).slice().sort((a, b) => a.from.localeCompare(b.from));
+    if (!rs.length) return { total: 0, days: 0, rows: [], warning: "\u043D\u0435 \u0437\u0430\u0434\u0430\u043D\u0430 \u043A\u043B\u044E\u0447\u0435\u0432\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430" };
+    let warning = rs[0].from > start ? "\u0441\u0442\u0430\u0432\u043A\u0430 \u0434\u043E " + rs[0].from + " \u043D\u0435 \u0437\u0430\u0434\u0430\u043D\u0430 \u2014 \u0434\u043B\u044F \u0440\u0430\u043D\u043D\u0438\u0445 \u0434\u043D\u0435\u0439 \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0430 \u043F\u0435\u0440\u0432\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 \u0438\u0437 \u0442\u0430\u0431\u043B\u0438\u0446\u044B" : "";
     const rows = [];
     let cur = start, total = 0;
     while (diffDays(cur, calcDate) >= 0) {
       const y = parse(cur).getUTCFullYear();
-      const rate = (rs.filter(r => r.from <= cur).pop() || rs[0]).rate;
-      // конец сегмента: смена ставки, конец года или дата расчёта
-      const nextRate = rs.find(r => r.from > cur);
+      const rate = (rs.filter((r) => r.from <= cur).pop() || rs[0]).rate;
+      const nextRate = rs.find((r) => r.from > cur);
       let end = calcDate;
-      const yearEnd = y + '-12-31';
+      const yearEnd = y + "-12-31";
       if (yearEnd < end) end = yearEnd;
       if (nextRate && addDays(nextRate.from, -1) < end) end = addDays(nextRate.from, -1);
       const days = diffDays(cur, end) + 1;
@@ -471,107 +530,120 @@ footer a { color: inherit; }
     }
     return { total: round2(total), days: diffDays(start, calcDate) + 1, rows, warning };
   }
-  function round2(x) { return Math.round(x * 100) / 100; }
-
-  /** Проценты по ст. 395 по рейсу с учётом частичных оплат после срока: каждая оплата уменьшает долг со следующего дня. */
+  function round2(x) {
+    return Math.round(x * 100) / 100;
+  }
   function interest395Trip(trip, calcDate, rates) {
     const due = computeDue(trip).due;
     const amount = Number(trip.amount) || 0;
     if (!due || !(amount > 0)) return { total: 0, days: 0, rows: [] };
-    const pays = (trip.payments || []).filter(p => p.date && Number(p.amount) > 0).slice().sort((a, b) => a.date.localeCompare(b.date));
-    let balance = amount - pays.filter(p => p.date <= due).reduce((a, p) => a + Number(p.amount), 0);
-    let from = due; // начисление с from+1
-    const rows = []; let total = 0; let warning = '';
+    const pays = (trip.payments || []).filter((p) => p.date && Number(p.amount) > 0).slice().sort((a, b) => a.date.localeCompare(b.date));
+    let balance = amount - pays.filter((p) => p.date <= due).reduce((a, p) => a + Number(p.amount), 0);
+    let from = due;
+    const rows = [];
+    let total = 0;
+    let warning = "";
     const accrue = (to) => {
       if (balance <= 0 || to <= from) return;
       const r = interest395(balance, from, to, rates);
-      r.rows.forEach(x => rows.push({ ...x, base: round2(balance) }));
-      total += r.total; if (r.warning) warning = r.warning;
+      r.rows.forEach((x) => rows.push(__spreadProps(__spreadValues({}, x), { base: round2(balance) })));
+      total += r.total;
+      if (r.warning) warning = r.warning;
     };
-    for (const p of pays.filter(p => p.date > due && p.date <= calcDate)) {
-      accrue(p.date); balance = Math.max(0, balance - Number(p.amount)); from = p.date;
+    for (const p of pays.filter((p2) => p2.date > due && p2.date <= calcDate)) {
+      accrue(p.date);
+      balance = Math.max(0, balance - Number(p.amount));
+      from = p.date;
     }
     accrue(calcDate);
     return { total: round2(total), days: Math.max(0, diffDays(due, calcDate)), rows, warning };
   }
-
-  /** Договорная неустойка: pct % в день, с ограничением capPct % от суммы (0 = без ограничения). */
   function contractPenalty(amount, overdueDays, pctPerDay, capPct) {
     if (!(pctPerDay > 0) || !(overdueDays > 0)) return 0;
     let p = amount * pctPerDay / 100 * overdueDays;
     if (capPct > 0) p = Math.min(p, amount * capPct / 100);
     return round2(p);
   }
-
-  // --- Юридические сроки ------------------------------------------------
-  /** Срок исковой давности по перевозке груза — 1 год (п.3 ст.797 ГК РФ; для экспедиции — ст.13 ФЗ № 87-ФЗ). Упрощённо считаем от срока оплаты. */
   function limitationDate(trip) {
     const d = computeDue(trip).due || trip.unloadDate;
     if (!d) return null;
-    const [y, m, dd] = d.split('-').map(Number);
+    const [y, m, dd] = d.split("-").map(Number);
     const t = new Date(Date.UTC(y + 1, m - 1, dd));
-    if (t.getUTCMonth() !== m - 1) t.setUTCDate(0); // 29.02 → 28.02 следующего года
+    if (t.getUTCMonth() !== m - 1) t.setUTCDate(0);
     return fmt(t);
   }
-  /** Иск в арбитраж — не ранее 30 календарных дней после направления претензии (ч.5 ст.4 АПК РФ), если договором не установлен иной срок. */
-  // «по истечении 30 календарных дней со дня направления» → подавать безопасно с 31-го дня
-  function courtAllowedDate(claimSentDate, days) { return claimSentDate ? addDays(claimSentDate, Number(days || 30) + 1) : null; }
-
-  // --- Лестница действий при просрочке (настраиваемая) ------------------
+  function courtAllowedDate(claimSentDate, days) {
+    return claimSentDate ? addDays(claimSentDate, Number(days || 30) + 1) : null;
+  }
   const DEFAULT_LADDER = [
-    { day: 1, code: 'remind', title: 'Вежливое напоминание (звонок/мессенджер)' },
-    { day: 5, code: 'letter', title: 'Письмо-требование с расчётом просрочки' },
-    { day: 10, code: 'claim', title: 'Официальная претензия (почтой с описью или по ЭДО)' },
+    { day: 1, code: "remind", title: "\u0412\u0435\u0436\u043B\u0438\u0432\u043E\u0435 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 (\u0437\u0432\u043E\u043D\u043E\u043A/\u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440)" },
+    { day: 5, code: "letter", title: "\u041F\u0438\u0441\u044C\u043C\u043E-\u0442\u0440\u0435\u0431\u043E\u0432\u0430\u043D\u0438\u0435 \u0441 \u0440\u0430\u0441\u0447\u0451\u0442\u043E\u043C \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u043A\u0438" },
+    { day: 10, code: "claim", title: "\u041E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u0430\u044F \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044F (\u043F\u043E\u0447\u0442\u043E\u0439 \u0441 \u043E\u043F\u0438\u0441\u044C\u044E \u0438\u043B\u0438 \u043F\u043E \u042D\u0414\u041E)" }
   ];
   function nextAction(trip, today, ladder) {
     const st = tripStatus(trip, today);
-    if (st.code !== 'overdue') return null;
+    if (st.code !== "overdue") return null;
     if (trip.claimSentDate) {
       const court = courtAllowedDate(trip.claimSentDate, trip.claimTermDays);
-      return diffDays(today, court) <= 0
-        ? { code: 'court', title: 'Можно подавать иск в арбитраж (прошло 30 дней с претензии)', date: court }
-        : { code: 'wait_claim', title: 'Ждём ответа на претензию до ' + court, date: court };
+      return diffDays(today, court) <= 0 ? { code: "court", title: "\u041C\u043E\u0436\u043D\u043E \u043F\u043E\u0434\u0430\u0432\u0430\u0442\u044C \u0438\u0441\u043A \u0432 \u0430\u0440\u0431\u0438\u0442\u0440\u0430\u0436 (\u043F\u0440\u043E\u0448\u043B\u043E 30 \u0434\u043D\u0435\u0439 \u0441 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438)", date: court } : { code: "wait_claim", title: "\u0416\u0434\u0451\u043C \u043E\u0442\u0432\u0435\u0442\u0430 \u043D\u0430 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044E \u0434\u043E " + court, date: court };
     }
-    const l = (ladder || DEFAULT_LADDER).filter(s => st.overdueDays >= s.day).pop();
+    const l = (ladder || DEFAULT_LADDER).filter((s) => st.overdueDays >= s.day).pop();
     return l ? { code: l.code, title: l.title } : null;
   }
-
-  // --- Аналитика по заказчикам ------------------------------------------
   function customerStats(trips, today) {
     const map = {};
     for (const t of trips) {
-      const key = (t.customerInn || '').trim() || (t.customer || '—').trim().toLowerCase();
-      const m = map[key] || (map[key] = { key, name: t.customer || '—', inn: t.customerInn || '', trips: 0, debt: 0, overdueDebt: 0, overdueTrips: 0, paidTrips: 0, delaySum: 0, paidLate: 0, maxOverdue: 0 });
+      const key = (t.customerInn || "").trim() || (t.customer || "\u2014").trim().toLowerCase();
+      const m = map[key] || (map[key] = { key, name: t.customer || "\u2014", inn: t.customerInn || "", trips: 0, debt: 0, overdueDebt: 0, overdueTrips: 0, paidTrips: 0, delaySum: 0, paidLate: 0, maxOverdue: 0 });
       m.trips++;
       const st = tripStatus(t, today);
       m.debt += st.debt || 0;
-      if (st.code === 'overdue') { m.overdueDebt += st.debt; m.overdueTrips++; m.maxOverdue = Math.max(m.maxOverdue, st.overdueDays); }
-      if (st.code === 'paid') { m.paidTrips++; m.delaySum += st.delayDays || 0; if ((st.delayDays || 0) > 0) m.paidLate++; }
+      if (st.code === "overdue") {
+        m.overdueDebt += st.debt;
+        m.overdueTrips++;
+        m.maxOverdue = Math.max(m.maxOverdue, st.overdueDays);
+      }
+      if (st.code === "paid") {
+        m.paidTrips++;
+        m.delaySum += st.delayDays || 0;
+        if ((st.delayDays || 0) > 0) m.paidLate++;
+      }
     }
-    return Object.values(map).map(m => ({ ...m, avgDelay: m.paidTrips ? round2(m.delaySum / m.paidTrips) : null,
-      risk: m.overdueTrips > 0 && m.maxOverdue > 14 ? 'high' : (m.overdueTrips > 0 || (m.paidTrips && m.delaySum / m.paidTrips > 5) ? 'mid' : 'low') }))
-      .sort((a, b) => b.overdueDebt - a.overdueDebt || b.debt - a.debt);
+    return Object.values(map).map((m) => __spreadProps(__spreadValues({}, m), {
+      avgDelay: m.paidTrips ? round2(m.delaySum / m.paidTrips) : null,
+      risk: m.overdueTrips > 0 && m.maxOverdue > 14 ? "high" : m.overdueTrips > 0 || m.paidTrips && m.delaySum / m.paidTrips > 5 ? "mid" : "low"
+    })).sort((a, b) => b.overdueDebt - a.overdueDebt || b.debt - a.debt);
   }
-
   function summary(trips, today) {
     const s = { debt: 0, overdue: 0, overdueCount: 0, soon: 0, soonCount: 0, waitDocs: 0, waitDocsCount: 0, interest: 0 };
     for (const t of trips) {
       const st = tripStatus(t, today);
       s.debt += st.debt || 0;
-      if (st.code === 'overdue') { s.overdue += st.debt; s.overdueCount++; }
-      if (st.code === 'soon') { s.soon += st.debt; s.soonCount++; }
-      if (st.code === 'wait_docs') { s.waitDocs += st.debt; s.waitDocsCount++; }
+      if (st.code === "overdue") {
+        s.overdue += st.debt;
+        s.overdueCount++;
+      }
+      if (st.code === "soon") {
+        s.soon += st.debt;
+        s.soonCount++;
+      }
+      if (st.code === "wait_docs") {
+        s.waitDocs += st.debt;
+        s.waitDocsCount++;
+      }
     }
     return s;
   }
-
-  // --- Текст претензии ----------------------------------------------------
   function money(x) {
-    const neg = x < 0; const [i, f] = Math.abs(Math.round(x * 100) / 100).toFixed(2).split('.');
-    return (neg ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ',' + f;
+    const neg = x < 0;
+    const [i, f] = Math.abs(Math.round(x * 100) / 100).toFixed(2).split(".");
+    return (neg ? "-" : "") + i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + f;
   }
-  function ruDate(s) { if (!s) return '____'; const [y, m, d] = s.split('-'); return d + '.' + m + '.' + y; }
-
+  function ruDate(s) {
+    if (!s) return "____";
+    const [y, m, d] = s.split("-");
+    return d + "." + m + "." + y;
+  }
   function claimText(trip, profile, today, rates, opts) {
     opts = opts || {};
     const st = tripStatus(trip, today);
@@ -582,550 +654,824 @@ footer a { color: inherit; }
     const usePenalty = pen > 0;
     const answerDays = opts.answerDays || 10;
     const lines = [];
-    lines.push('Кому: ' + (trip.customer || '__________') + (trip.customerInn ? ', ИНН ' + trip.customerInn : ''));
-    lines.push('От: ' + (profile.name || '__________') + (profile.inn ? ', ИНН ' + profile.inn : ''));
-    if (profile.contacts) lines.push('Контакты: ' + profile.contacts);
-    lines.push('');
-    lines.push('ПРЕТЕНЗИЯ');
-    lines.push('об оплате услуг по перевозке груза');
-    lines.push('');
-    lines.push('Дата: ' + ruDate(today));
-    lines.push('');
-    lines.push('Между ' + (profile.name || 'Перевозчиком') + ' (далее — Перевозчик) и ' + (trip.customer || 'Заказчиком') +
-      ' (далее — Заказчик) заключён договор-заявка ' + (trip.orderNo ? '№ ' + trip.orderNo + ' ' : '') + 'от ' + ruDate(trip.orderDate || trip.loadDate) +
-      ' на перевозку груза по маршруту ' + (trip.route || '__________') + '.');
-    lines.push('Перевозчик выполнил обязательства в полном объёме: груз доставлен ' + ruDate(trip.unloadDate) + '.' +
-      (trip.docsSentDate ? ' Документы направлены Заказчику ' + ruDate(trip.docsSentDate) + (trip.docsTrack ? ' (трек/номер отправления: ' + trip.docsTrack + ')' : '') + '.' : ''));
-    lines.push('Стоимость перевозки составляет ' + money(Number(trip.amount) || 0) + ' руб. Срок оплаты по условиям заявки: ' +
-      (trip.termDays || '__') + ' ' + (trip.termType === 'calendar' ? 'календарных' : 'банковских (рабочих)') + ' дней с момента: ' + (BASE_EVENTS[trip.baseEvent] || '__') +
-      '. Оплата должна была поступить не позднее ' + ruDate(due) + '.');
-    if (paidSum(trip) > 0) lines.push('Заказчиком оплачено ' + money(paidSum(trip)) + ' руб.');
-    lines.push('На дату претензии задолженность составляет ' + money(left) + ' руб., просрочка — ' + (st.overdueDays || 0) + ' дн.');
-    lines.push('');
+    lines.push("\u041A\u043E\u043C\u0443: " + (trip.customer || "__________") + (trip.customerInn ? ", \u0418\u041D\u041D " + trip.customerInn : ""));
+    lines.push("\u041E\u0442: " + (profile.name || "__________") + (profile.inn ? ", \u0418\u041D\u041D " + profile.inn : ""));
+    if (profile.contacts) lines.push("\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B: " + profile.contacts);
+    lines.push("");
+    lines.push("\u041F\u0420\u0415\u0422\u0415\u041D\u0417\u0418\u042F");
+    lines.push("\u043E\u0431 \u043E\u043F\u043B\u0430\u0442\u0435 \u0443\u0441\u043B\u0443\u0433 \u043F\u043E \u043F\u0435\u0440\u0435\u0432\u043E\u0437\u043A\u0435 \u0433\u0440\u0443\u0437\u0430");
+    lines.push("");
+    lines.push("\u0414\u0430\u0442\u0430: " + ruDate(today));
+    lines.push("");
+    lines.push("\u041C\u0435\u0436\u0434\u0443 " + (profile.name || "\u041F\u0435\u0440\u0435\u0432\u043E\u0437\u0447\u0438\u043A\u043E\u043C") + " (\u0434\u0430\u043B\u0435\u0435 \u2014 \u041F\u0435\u0440\u0435\u0432\u043E\u0437\u0447\u0438\u043A) \u0438 " + (trip.customer || "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C") + " (\u0434\u0430\u043B\u0435\u0435 \u2014 \u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A) \u0437\u0430\u043A\u043B\u044E\u0447\u0451\u043D \u0434\u043E\u0433\u043E\u0432\u043E\u0440-\u0437\u0430\u044F\u0432\u043A\u0430 " + (trip.orderNo ? "\u2116 " + trip.orderNo + " " : "") + "\u043E\u0442 " + ruDate(trip.orderDate || trip.loadDate) + " \u043D\u0430 \u043F\u0435\u0440\u0435\u0432\u043E\u0437\u043A\u0443 \u0433\u0440\u0443\u0437\u0430 \u043F\u043E \u043C\u0430\u0440\u0448\u0440\u0443\u0442\u0443 " + (trip.route || "__________") + ".");
+    lines.push("\u041F\u0435\u0440\u0435\u0432\u043E\u0437\u0447\u0438\u043A \u0432\u044B\u043F\u043E\u043B\u043D\u0438\u043B \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u0441\u0442\u0432\u0430 \u0432 \u043F\u043E\u043B\u043D\u043E\u043C \u043E\u0431\u044A\u0451\u043C\u0435: \u0433\u0440\u0443\u0437 \u0434\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D " + ruDate(trip.unloadDate) + "." + (trip.docsSentDate ? " \u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B \u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0443 " + ruDate(trip.docsSentDate) + (trip.docsTrack ? " (\u0442\u0440\u0435\u043A/\u043D\u043E\u043C\u0435\u0440 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F: " + trip.docsTrack + ")" : "") + "." : ""));
+    lines.push("\u0421\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u043F\u0435\u0440\u0435\u0432\u043E\u0437\u043A\u0438 \u0441\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 " + money(Number(trip.amount) || 0) + " \u0440\u0443\u0431. \u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B \u043F\u043E \u0443\u0441\u043B\u043E\u0432\u0438\u044F\u043C \u0437\u0430\u044F\u0432\u043A\u0438: " + (trip.termDays || "__") + " " + (trip.termType === "calendar" ? "\u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u043D\u044B\u0445" : "\u0431\u0430\u043D\u043A\u043E\u0432\u0441\u043A\u0438\u0445 (\u0440\u0430\u0431\u043E\u0447\u0438\u0445)") + " \u0434\u043D\u0435\u0439 \u0441 \u043C\u043E\u043C\u0435\u043D\u0442\u0430: " + (BASE_EVENTS[trip.baseEvent] || "__") + ". \u041E\u043F\u043B\u0430\u0442\u0430 \u0434\u043E\u043B\u0436\u043D\u0430 \u0431\u044B\u043B\u0430 \u043F\u043E\u0441\u0442\u0443\u043F\u0438\u0442\u044C \u043D\u0435 \u043F\u043E\u0437\u0434\u043D\u0435\u0435 " + ruDate(due) + ".");
+    if (paidSum(trip) > 0) lines.push("\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C \u043E\u043F\u043B\u0430\u0447\u0435\u043D\u043E " + money(paidSum(trip)) + " \u0440\u0443\u0431.");
+    lines.push("\u041D\u0430 \u0434\u0430\u0442\u0443 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438 \u0437\u0430\u0434\u043E\u043B\u0436\u0435\u043D\u043D\u043E\u0441\u0442\u044C \u0441\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 " + money(left) + " \u0440\u0443\u0431., \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u043A\u0430 \u2014 " + (st.overdueDays || 0) + " \u0434\u043D.");
+    lines.push("");
     if (usePenalty) {
-      lines.push('Условиями заявки предусмотрена неустойка ' + trip.penaltyPct + '% в день от суммы задолженности. Размер неустойки на ' + ruDate(today) + ': ' + money(pen) + ' руб.');
+      lines.push("\u0423\u0441\u043B\u043E\u0432\u0438\u044F\u043C\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u043F\u0440\u0435\u0434\u0443\u0441\u043C\u043E\u0442\u0440\u0435\u043D\u0430 \u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0430 " + trip.penaltyPct + "% \u0432 \u0434\u0435\u043D\u044C \u043E\u0442 \u0441\u0443\u043C\u043C\u044B \u0437\u0430\u0434\u043E\u043B\u0436\u0435\u043D\u043D\u043E\u0441\u0442\u0438. \u0420\u0430\u0437\u043C\u0435\u0440 \u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0438 \u043D\u0430 " + ruDate(today) + ": " + money(pen) + " \u0440\u0443\u0431.");
     } else {
-      lines.push('В соответствии со ст. 395 ГК РФ на сумму долга подлежат начислению проценты за пользование чужими денежными средствами. Расчёт на ' + ruDate(today) + ': ' + money(i395.total) + ' руб. (' + i395.days + ' дн.).');
+      lines.push("\u0412 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0438 \u0441\u043E \u0441\u0442. 395 \u0413\u041A \u0420\u0424 \u043D\u0430 \u0441\u0443\u043C\u043C\u0443 \u0434\u043E\u043B\u0433\u0430 \u043F\u043E\u0434\u043B\u0435\u0436\u0430\u0442 \u043D\u0430\u0447\u0438\u0441\u043B\u0435\u043D\u0438\u044E \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u0437\u0430 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043D\u0438\u0435 \u0447\u0443\u0436\u0438\u043C\u0438 \u0434\u0435\u043D\u0435\u0436\u043D\u044B\u043C\u0438 \u0441\u0440\u0435\u0434\u0441\u0442\u0432\u0430\u043C\u0438. \u0420\u0430\u0441\u0447\u0451\u0442 \u043D\u0430 " + ruDate(today) + ": " + money(i395.total) + " \u0440\u0443\u0431. (" + i395.days + " \u0434\u043D.).");
     }
-    lines.push('');
-    lines.push('На основании ст. 309, 310, 395 ГК РФ ТРЕБУЕМ в течение ' + answerDays + ' календарных дней с даты получения претензии оплатить задолженность ' +
-      money(left) + ' руб.' + (usePenalty ? ' и неустойку ' + money(pen) + ' руб.' : ' и проценты ' + money(i395.total) + ' руб.') + ' по реквизитам:');
-    lines.push(profile.bank || '__________ (банковские реквизиты)');
-    lines.push('');
-    lines.push('В случае неисполнения требования Перевозчик будет вынужден обратиться в арбитражный суд по истечении 30 календарных дней с даты направления претензии (ч. 5 ст. 4 АПК РФ) с требованием о взыскании долга, процентов (неустойки) по день фактической оплаты, а также судебных расходов, включая госпошлину и расходы на представителя.');
-    lines.push('');
-    lines.push('Приложения: копия договора-заявки; копии транспортной накладной/ЭТрН и акта; копия счёта; расчёт процентов (неустойки).');
-    lines.push('');
-    lines.push('____________________ /' + (profile.signer || '__________') + '/');
+    lines.push("");
+    lines.push("\u041D\u0430 \u043E\u0441\u043D\u043E\u0432\u0430\u043D\u0438\u0438 \u0441\u0442. 309, 310, 395 \u0413\u041A \u0420\u0424 \u0422\u0420\u0415\u0411\u0423\u0415\u041C \u0432 \u0442\u0435\u0447\u0435\u043D\u0438\u0435 " + answerDays + " \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u043D\u044B\u0445 \u0434\u043D\u0435\u0439 \u0441 \u0434\u0430\u0442\u044B \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438 \u043E\u043F\u043B\u0430\u0442\u0438\u0442\u044C \u0437\u0430\u0434\u043E\u043B\u0436\u0435\u043D\u043D\u043E\u0441\u0442\u044C " + money(left) + " \u0440\u0443\u0431." + (usePenalty ? " \u0438 \u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0443 " + money(pen) + " \u0440\u0443\u0431." : " \u0438 \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u044B " + money(i395.total) + " \u0440\u0443\u0431.") + " \u043F\u043E \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u0430\u043C:");
+    lines.push(profile.bank || "__________ (\u0431\u0430\u043D\u043A\u043E\u0432\u0441\u043A\u0438\u0435 \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B)");
+    lines.push("");
+    lines.push("\u0412 \u0441\u043B\u0443\u0447\u0430\u0435 \u043D\u0435\u0438\u0441\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u0442\u0440\u0435\u0431\u043E\u0432\u0430\u043D\u0438\u044F \u041F\u0435\u0440\u0435\u0432\u043E\u0437\u0447\u0438\u043A \u0431\u0443\u0434\u0435\u0442 \u0432\u044B\u043D\u0443\u0436\u0434\u0435\u043D \u043E\u0431\u0440\u0430\u0442\u0438\u0442\u044C\u0441\u044F \u0432 \u0430\u0440\u0431\u0438\u0442\u0440\u0430\u0436\u043D\u044B\u0439 \u0441\u0443\u0434 \u043F\u043E \u0438\u0441\u0442\u0435\u0447\u0435\u043D\u0438\u0438 30 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u043D\u044B\u0445 \u0434\u043D\u0435\u0439 \u0441 \u0434\u0430\u0442\u044B \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438 (\u0447. 5 \u0441\u0442. 4 \u0410\u041F\u041A \u0420\u0424) \u0441 \u0442\u0440\u0435\u0431\u043E\u0432\u0430\u043D\u0438\u0435\u043C \u043E \u0432\u0437\u044B\u0441\u043A\u0430\u043D\u0438\u0438 \u0434\u043E\u043B\u0433\u0430, \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u043E\u0432 (\u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0438) \u043F\u043E \u0434\u0435\u043D\u044C \u0444\u0430\u043A\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0439 \u043E\u043F\u043B\u0430\u0442\u044B, \u0430 \u0442\u0430\u043A\u0436\u0435 \u0441\u0443\u0434\u0435\u0431\u043D\u044B\u0445 \u0440\u0430\u0441\u0445\u043E\u0434\u043E\u0432, \u0432\u043A\u043B\u044E\u0447\u0430\u044F \u0433\u043E\u0441\u043F\u043E\u0448\u043B\u0438\u043D\u0443 \u0438 \u0440\u0430\u0441\u0445\u043E\u0434\u044B \u043D\u0430 \u043F\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u0438\u0442\u0435\u043B\u044F.");
+    lines.push("");
+    lines.push("\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F: \u043A\u043E\u043F\u0438\u044F \u0434\u043E\u0433\u043E\u0432\u043E\u0440\u0430-\u0437\u0430\u044F\u0432\u043A\u0438; \u043A\u043E\u043F\u0438\u0438 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u043D\u043E\u0439 \u043D\u0430\u043A\u043B\u0430\u0434\u043D\u043E\u0439/\u042D\u0422\u0440\u041D \u0438 \u0430\u043A\u0442\u0430; \u043A\u043E\u043F\u0438\u044F \u0441\u0447\u0451\u0442\u0430; \u0440\u0430\u0441\u0447\u0451\u0442 \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u043E\u0432 (\u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0438).");
+    lines.push("");
+    lines.push("____________________ /" + (profile.signer || "__________") + "/");
     const calc = [];
     if (!usePenalty && i395.rows && i395.rows.length) {
-      calc.push('Расчёт процентов по ст. 395 ГК РФ (с учётом частичных оплат):');
-      for (const r of i395.rows) calc.push(ruDate(r.from) + ' — ' + ruDate(r.to) + ': ' + money(r.base) + ' руб. × ' + r.rate + '% × ' + r.days + ' дн. / ' + r.yearDays + ' = ' + money(r.sum) + ' руб.');
-      calc.push('Итого: ' + money(i395.total) + ' руб.');
+      calc.push("\u0420\u0430\u0441\u0447\u0451\u0442 \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u043E\u0432 \u043F\u043E \u0441\u0442. 395 \u0413\u041A \u0420\u0424 (\u0441 \u0443\u0447\u0451\u0442\u043E\u043C \u0447\u0430\u0441\u0442\u0438\u0447\u043D\u044B\u0445 \u043E\u043F\u043B\u0430\u0442):");
+      for (const r of i395.rows) calc.push(ruDate(r.from) + " \u2014 " + ruDate(r.to) + ": " + money(r.base) + " \u0440\u0443\u0431. \xD7 " + r.rate + "% \xD7 " + r.days + " \u0434\u043D. / " + r.yearDays + " = " + money(r.sum) + " \u0440\u0443\u0431.");
+      calc.push("\u0418\u0442\u043E\u0433\u043E: " + money(i395.total) + " \u0440\u0443\u0431.");
     }
     const d0 = computeDue(trip);
-    const warns = [i395.warning, d0.estimated ? 'Срок оплаты ОЦЕНОЧНЫЙ (' + d0.reason + '): до отправки претензии укажите фактическую дату получения документов заказчиком.' : '', d0.calendarWarning].filter(Boolean);
-    return { text: lines.join('\n'), calc: calc.join('\n'), interest: i395.total, penalty: pen, debt: left, overdueDays: st.overdueDays || 0, warning: warns.join(' ') };
+    const warns = [i395.warning, d0.estimated ? "\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B \u041E\u0426\u0415\u041D\u041E\u0427\u041D\u042B\u0419 (" + d0.reason + "): \u0434\u043E \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438 \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u0444\u0430\u043A\u0442\u0438\u0447\u0435\u0441\u043A\u0443\u044E \u0434\u0430\u0442\u0443 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C." : "", d0.calendarWarning].filter(Boolean);
+    return { text: lines.join("\n"), calc: calc.join("\n"), interest: i395.total, penalty: pen, debt: left, overdueDays: st.overdueDays || 0, warning: warns.join(" ") };
   }
-
   function reminderText(trip, profile, today) {
     const st = tripStatus(trip, today);
-    return 'Добрый день! Напоминаем об оплате рейса ' + (trip.orderNo ? '№ ' + trip.orderNo + ' ' : '') + (trip.route ? '(' + trip.route + ') ' : '') +
-      'на сумму ' + money(debt(trip)) + ' руб. Срок оплаты по заявке — ' + ruDate(st.due) + (st.code === 'overdue' ? ', просрочка ' + st.overdueDays + ' дн.' : '') +
-      '. Документы направлены ' + ruDate(trip.docsSentDate) + (trip.docsTrack ? ' (трек ' + trip.docsTrack + ')' : '') +
-      '. Просим сообщить дату оплаты. ' + (profile.name || '');
+    return "\u0414\u043E\u0431\u0440\u044B\u0439 \u0434\u0435\u043D\u044C! \u041D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u0435\u043C \u043E\u0431 \u043E\u043F\u043B\u0430\u0442\u0435 \u0440\u0435\u0439\u0441\u0430 " + (trip.orderNo ? "\u2116 " + trip.orderNo + " " : "") + (trip.route ? "(" + trip.route + ") " : "") + "\u043D\u0430 \u0441\u0443\u043C\u043C\u0443 " + money(debt(trip)) + " \u0440\u0443\u0431. \u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0435 \u2014 " + ruDate(st.due) + (st.code === "overdue" ? ", \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u043A\u0430 " + st.overdueDays + " \u0434\u043D." : "") + ". \u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B " + ruDate(trip.docsSentDate) + (trip.docsTrack ? " (\u0442\u0440\u0435\u043A " + trip.docsTrack + ")" : "") + ". \u041F\u0440\u043E\u0441\u0438\u043C \u0441\u043E\u043E\u0431\u0449\u0438\u0442\u044C \u0434\u0430\u0442\u0443 \u043E\u043F\u043B\u0430\u0442\u044B. " + (profile.name || "");
   }
-
-  // --- Экспорт в календарь (.ics) ----------------------------------------
-  function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function icsEscape(s) {
+    return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  }
   function toIcs(trips, today) {
-    const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//reys-oplachen//RU', 'CALSCALE:GREGORIAN'];
+    const out = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//reys-oplachen//RU", "CALSCALE:GREGORIAN"];
     for (const t of trips) {
       const st = tripStatus(t, today);
-      if (!st.due || st.code === 'paid') continue;
-      const d = st.due.replace(/-/g, '');
-      const d2 = addDays(st.due, 1).replace(/-/g, '');
-      out.push('BEGIN:VEVENT', 'UID:' + (t.id || Math.random().toString(36).slice(2)) + '@reys-oplachen', 'DTSTAMP:' + today.replace(/-/g, '') + 'T090000Z',
-        'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + d2,
-        'SUMMARY:' + icsEscape('Оплата рейса: ' + (t.customer || '') + ' — ' + money(st.debt) + ' руб.'),
-        'DESCRIPTION:' + icsEscape('Заявка ' + (t.orderNo || '') + ', ' + (t.route || '') + '. Если денег нет — отправить напоминание.'),
-        'BEGIN:VALARM', 'TRIGGER:-PT0M', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape('Срок оплаты рейса'), 'END:VALARM', 'END:VEVENT');
+      if (!st.due || st.code === "paid") continue;
+      const d = st.due.replace(/-/g, "");
+      const d2 = addDays(st.due, 1).replace(/-/g, "");
+      out.push(
+        "BEGIN:VEVENT",
+        "UID:" + (t.id || Math.random().toString(36).slice(2)) + "@reys-oplachen",
+        "DTSTAMP:" + today.replace(/-/g, "") + "T090000Z",
+        "DTSTART;VALUE=DATE:" + d,
+        "DTEND;VALUE=DATE:" + d2,
+        "SUMMARY:" + icsEscape("\u041E\u043F\u043B\u0430\u0442\u0430 \u0440\u0435\u0439\u0441\u0430: " + (t.customer || "") + " \u2014 " + money(st.debt) + " \u0440\u0443\u0431."),
+        "DESCRIPTION:" + icsEscape("\u0417\u0430\u044F\u0432\u043A\u0430 " + (t.orderNo || "") + ", " + (t.route || "") + ". \u0415\u0441\u043B\u0438 \u0434\u0435\u043D\u0435\u0433 \u043D\u0435\u0442 \u2014 \u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435."),
+        "BEGIN:VALARM",
+        "TRIGGER:-PT0M",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:" + icsEscape("\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B \u0440\u0435\u0439\u0441\u0430"),
+        "END:VALARM",
+        "END:VEVENT"
+      );
     }
-    out.push('END:VCALENDAR');
-    return out.join('\r\n');
+    out.push("END:VCALENDAR");
+    return out.join("\r\n");
   }
-
-  // --- CSV ---------------------------------------------------------------
-  const CSV_FIELDS = ['customer', 'customerInn', 'orderNo', 'orderDate', 'route', 'loadDate', 'unloadDate', 'amount', 'termDays', 'termType', 'baseEvent', 'baseEventDate', 'docsSentDate', 'docsTrack', 'docsTransitDays', 'paidAmount', 'paidDate', 'penaltyPct', 'claimSentDate', 'note'];
-  function csvEscape(v) { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  const CSV_FIELDS = ["customer", "customerInn", "orderNo", "orderDate", "route", "loadDate", "unloadDate", "amount", "termDays", "termType", "baseEvent", "baseEventDate", "docsSentDate", "docsTrack", "docsTransitDays", "paidAmount", "paidDate", "penaltyPct", "claimSentDate", "note"];
+  function csvEscape(v) {
+    v = v == null ? "" : String(v);
+    return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
   function toCsv(trips) {
-    const rows = [CSV_FIELDS.join(';')];
-    for (const t of trips) rows.push(CSV_FIELDS.map(f => f === 'paidAmount' ? paidSum(t) : f === 'paidDate' ? lastPaymentDate(t) : t[f]).map(csvEscape).join(';'));
-    return '\ufeff' + rows.join('\n');
+    const rows = [CSV_FIELDS.join(";")];
+    for (const t of trips) rows.push(CSV_FIELDS.map((f) => f === "paidAmount" ? paidSum(t) : f === "paidDate" ? lastPaymentDate(t) : t[f]).map(csvEscape).join(";"));
+    return "\uFEFF" + rows.join("\n");
   }
-  // Синонимы заголовков (рус./англ.), чтобы принимать таблицы из Excel «как есть»
   const HEADER_ALIASES = {
-    customer: ['customer', 'заказчик', 'клиент', 'контрагент', 'грузоотправитель', 'покупатель'],
-    customerInn: ['customerinn', 'инн', 'инн заказчика', 'инн клиента'],
-    orderNo: ['orderno', '№ заявки', 'номер заявки', 'заявка', '№', 'номер', '№ рейса', 'номер рейса'],
-    orderDate: ['orderdate', 'дата заявки'],
-    route: ['route', 'маршрут', 'направление', 'откуда-куда', 'откуда — куда'],
-    loadDate: ['loaddate', 'дата погрузки', 'погрузка'],
-    unloadDate: ['unloaddate', 'дата выгрузки', 'выгрузка', 'дата разгрузки', 'разгрузка', 'дата рейса', 'дата'],
-    amount: ['amount', 'сумма', 'ставка', 'стоимость', 'сумма рейса', 'фрахт', 'сумма, руб', 'сумма руб'],
-    termDays: ['termdays', 'срок', 'срок оплаты', 'отсрочка', 'дней', 'срок оплаты, дн', 'отсрочка, дн'],
-    termType: ['termtype', 'тип дней', 'дни', 'вид дней'],
-    baseEvent: ['baseevent', 'от события', 'срок от', 'база', 'считать от', 'начало срока'],
-    baseEventDate: ['baseeventdate', 'дата события', 'документы получены', 'дата получения документов', 'оригиналы получены'],
-    docsSentDate: ['docssentdate', 'документы отправлены', 'дата отправки документов', 'отправка документов'],
-    docsTrack: ['docstrack', 'трек', 'трек-номер', 'трек номер', 'номер отправления'],
-    docsTransitDays: ['docstransitdays', 'дней доставки'],
-    paidAmount: ['paidamount', 'оплачено', 'оплата', 'сумма оплаты', 'получено'],
-    paidDate: ['paiddate', 'дата оплаты'],
-    penaltyPct: ['penaltypct', 'неустойка', 'неустойка, %', 'пени'],
-    claimSentDate: ['claimsentdate', 'претензия', 'дата претензии'],
-    note: ['note', 'заметка', 'примечание', 'комментарий'],
+    customer: ["customer", "\u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A", "\u043A\u043B\u0438\u0435\u043D\u0442", "\u043A\u043E\u043D\u0442\u0440\u0430\u0433\u0435\u043D\u0442", "\u0433\u0440\u0443\u0437\u043E\u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u0435\u043B\u044C", "\u043F\u043E\u043A\u0443\u043F\u0430\u0442\u0435\u043B\u044C"],
+    customerInn: ["customerinn", "\u0438\u043D\u043D", "\u0438\u043D\u043D \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", "\u0438\u043D\u043D \u043A\u043B\u0438\u0435\u043D\u0442\u0430"],
+    orderNo: ["orderno", "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u043D\u043E\u043C\u0435\u0440 \u0437\u0430\u044F\u0432\u043A\u0438", "\u0437\u0430\u044F\u0432\u043A\u0430", "\u2116", "\u043D\u043E\u043C\u0435\u0440", "\u2116 \u0440\u0435\u0439\u0441\u0430", "\u043D\u043E\u043C\u0435\u0440 \u0440\u0435\u0439\u0441\u0430"],
+    orderDate: ["orderdate", "\u0434\u0430\u0442\u0430 \u0437\u0430\u044F\u0432\u043A\u0438"],
+    route: ["route", "\u043C\u0430\u0440\u0448\u0440\u0443\u0442", "\u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435", "\u043E\u0442\u043A\u0443\u0434\u0430-\u043A\u0443\u0434\u0430", "\u043E\u0442\u043A\u0443\u0434\u0430 \u2014 \u043A\u0443\u0434\u0430"],
+    loadDate: ["loaddate", "\u0434\u0430\u0442\u0430 \u043F\u043E\u0433\u0440\u0443\u0437\u043A\u0438", "\u043F\u043E\u0433\u0440\u0443\u0437\u043A\u0430"],
+    unloadDate: ["unloaddate", "\u0434\u0430\u0442\u0430 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438", "\u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0430", "\u0434\u0430\u0442\u0430 \u0440\u0430\u0437\u0433\u0440\u0443\u0437\u043A\u0438", "\u0440\u0430\u0437\u0433\u0440\u0443\u0437\u043A\u0430", "\u0434\u0430\u0442\u0430 \u0440\u0435\u0439\u0441\u0430", "\u0434\u0430\u0442\u0430"],
+    amount: ["amount", "\u0441\u0443\u043C\u043C\u0430", "\u0441\u0442\u0430\u0432\u043A\u0430", "\u0441\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C", "\u0441\u0443\u043C\u043C\u0430 \u0440\u0435\u0439\u0441\u0430", "\u0444\u0440\u0430\u0445\u0442", "\u0441\u0443\u043C\u043C\u0430, \u0440\u0443\u0431", "\u0441\u0443\u043C\u043C\u0430 \u0440\u0443\u0431"],
+    termDays: ["termdays", "\u0441\u0440\u043E\u043A", "\u0441\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B", "\u043E\u0442\u0441\u0440\u043E\u0447\u043A\u0430", "\u0434\u043D\u0435\u0439", "\u0441\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B, \u0434\u043D", "\u043E\u0442\u0441\u0440\u043E\u0447\u043A\u0430, \u0434\u043D"],
+    termType: ["termtype", "\u0442\u0438\u043F \u0434\u043D\u0435\u0439", "\u0434\u043D\u0438", "\u0432\u0438\u0434 \u0434\u043D\u0435\u0439"],
+    baseEvent: ["baseevent", "\u043E\u0442 \u0441\u043E\u0431\u044B\u0442\u0438\u044F", "\u0441\u0440\u043E\u043A \u043E\u0442", "\u0431\u0430\u0437\u0430", "\u0441\u0447\u0438\u0442\u0430\u0442\u044C \u043E\u0442", "\u043D\u0430\u0447\u0430\u043B\u043E \u0441\u0440\u043E\u043A\u0430"],
+    baseEventDate: ["baseeventdate", "\u0434\u0430\u0442\u0430 \u0441\u043E\u0431\u044B\u0442\u0438\u044F", "\u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u044B", "\u0434\u0430\u0442\u0430 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432", "\u043E\u0440\u0438\u0433\u0438\u043D\u0430\u043B\u044B \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u044B"],
+    docsSentDate: ["docssentdate", "\u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B", "\u0434\u0430\u0442\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432", "\u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0430 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432"],
+    docsTrack: ["docstrack", "\u0442\u0440\u0435\u043A", "\u0442\u0440\u0435\u043A-\u043D\u043E\u043C\u0435\u0440", "\u0442\u0440\u0435\u043A \u043D\u043E\u043C\u0435\u0440", "\u043D\u043E\u043C\u0435\u0440 \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F"],
+    docsTransitDays: ["docstransitdays", "\u0434\u043D\u0435\u0439 \u0434\u043E\u0441\u0442\u0430\u0432\u043A\u0438"],
+    paidAmount: ["paidamount", "\u043E\u043F\u043B\u0430\u0447\u0435\u043D\u043E", "\u043E\u043F\u043B\u0430\u0442\u0430", "\u0441\u0443\u043C\u043C\u0430 \u043E\u043F\u043B\u0430\u0442\u044B", "\u043F\u043E\u043B\u0443\u0447\u0435\u043D\u043E"],
+    paidDate: ["paiddate", "\u0434\u0430\u0442\u0430 \u043E\u043F\u043B\u0430\u0442\u044B"],
+    penaltyPct: ["penaltypct", "\u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0430", "\u043D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0430, %", "\u043F\u0435\u043D\u0438"],
+    claimSentDate: ["claimsentdate", "\u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044F", "\u0434\u0430\u0442\u0430 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u0438"],
+    note: ["note", "\u0437\u0430\u043C\u0435\u0442\u043A\u0430", "\u043F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u0435", "\u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0439"]
   };
-  const normHead = (h) => h.toLowerCase().replace(/ё/g, 'е').replace(/[«»"]/g, '').replace(/\s+/g, ' ').trim();
+  const normHead = (h) => h.toLowerCase().replace(/ё/g, "\u0435").replace(/[«»"]/g, "").replace(/\s+/g, " ").trim();
   function mapHeader(h) {
     const n = normHead(h);
-    for (const [f, al] of Object.entries(HEADER_ALIASES)) if (al.some(a => normHead(a) === n)) return f;
+    for (const [f, al] of Object.entries(HEADER_ALIASES)) if (al.some((a) => normHead(a) === n)) return f;
     return null;
   }
   function normDate(v) {
-    v = (v || '').trim(); if (!v) return '';
+    v = (v || "").trim();
+    if (!v) return "";
     let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
     m = v.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2}|\d{4})$/);
-    if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); }
-    return v; // вернётся как есть и не пройдёт проверку
+    if (m) {
+      const y = m[3].length === 2 ? "20" + m[3] : m[3];
+      return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+    }
+    return v;
   }
   function normNum(v) {
-    v = String(v || '').replace(/[\s  ]/g, '').replace(/(руб\.?|р\.|₽|%)/gi, '');
-    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(v)) v = v.replace(/\./g, ''); // 1.234.567,89
-    v = v.replace(',', '.');
-    const n = Number(v); return isFinite(n) ? n : NaN;
+    v = String(v || "").replace(/[\s  ]/g, "").replace(/(руб\.?|р\.|₽|%)/gi, "");
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(v)) v = v.replace(/\./g, "");
+    v = v.replace(",", ".");
+    const n = Number(v);
+    return isFinite(n) ? n : NaN;
   }
   function normBaseEvent(v) {
-    const s = (v || '').toLowerCase();
+    const s = (v || "").toLowerCase();
     if (BASE_EVENTS[s]) return s;
-    if (/выгруз|разгруз/.test(s)) return 'unload';
-    if (/скан/.test(s)) return 'scans';
-    if (/оригин|почт|бумаж/.test(s)) return 'originals';
-    if (/этрн|эпд|электрон/.test(s)) return 'etrn';
-    if (/сч[её]т|акт|упд/.test(s)) return 'invoice';
+    if (/выгруз|разгруз/.test(s)) return "unload";
+    if (/скан/.test(s)) return "scans";
+    if (/оригин|почт|бумаж/.test(s)) return "originals";
+    if (/этрн|эпд|электрон/.test(s)) return "etrn";
+    if (/сч[её]т|акт|упд/.test(s)) return "invoice";
     return null;
   }
-
   function parseCsv(text) {
-    text = String(text || '').replace(/^﻿/, '');
-    const first = text.split(/\r?\n/)[0] || '';
-    const cnt = (ch) => (first.match(new RegExp('\\' + ch, 'g')) || []).length;
-    const delim = [';', '\t', ','].sort((a, b) => cnt(b) - cnt(a))[0];
-    const rows = []; let row = [], cell = '', q = false;
+    text = String(text || "").replace(/^﻿/, "");
+    const first = text.split(/\r?\n/)[0] || "";
+    const cnt = (ch) => (first.match(new RegExp("\\" + ch, "g")) || []).length;
+    const delim = [";", "	", ","].sort((a, b) => cnt(b) - cnt(a))[0];
+    const rows = [];
+    let row = [], cell = "", q = false;
     for (let i = 0; i < text.length; i++) {
       const c = text[i];
-      if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
-      else if (c === '"') q = true;
-      else if (c === delim) { row.push(cell); cell = ''; }
-      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
-      else cell += c;
+      if (q) {
+        if (c === '"' && text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else if (c === '"') q = false;
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === delim) {
+        row.push(cell);
+        cell = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+      } else cell += c;
     }
-    if (cell || row.length) { row.push(cell); rows.push(row); }
-    if (!rows.length) return { trips: [], errors: ['файл пустой'], warnings: [] };
+    if (cell || row.length) {
+      row.push(cell);
+      rows.push(row);
+    }
+    if (!rows.length) return { trips: [], errors: ["\u0444\u0430\u0439\u043B \u043F\u0443\u0441\u0442\u043E\u0439"], warnings: [] };
     const rawHead = rows.shift();
     const head = rawHead.map(mapHeader);
     const errors = [], warnings = [];
     const unknown = rawHead.filter((h, i) => h.trim() && !head[i]);
-    if (unknown.length) warnings.push('не распознаны колонки: ' + unknown.join(', ') + ' — они пропущены');
-    if (!head.includes('customer')) errors.push('нет колонки с заказчиком (например «Заказчик» или customer)');
-    if (!head.includes('unloadDate')) errors.push('нет колонки с датой выгрузки (например «Дата выгрузки» или unloadDate)');
-    if (!head.includes('amount')) errors.push('нет колонки с суммой (например «Сумма» или amount)');
+    if (unknown.length) warnings.push("\u043D\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u044B \u043A\u043E\u043B\u043E\u043D\u043A\u0438: " + unknown.join(", ") + " \u2014 \u043E\u043D\u0438 \u043F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u044B");
+    if (!head.includes("customer")) errors.push("\u043D\u0435\u0442 \u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u0441 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C (\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \xAB\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A\xBB \u0438\u043B\u0438 customer)");
+    if (!head.includes("unloadDate")) errors.push("\u043D\u0435\u0442 \u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u0441 \u0434\u0430\u0442\u043E\u0439 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438 (\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \xAB\u0414\u0430\u0442\u0430 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438\xBB \u0438\u043B\u0438 unloadDate)");
+    if (!head.includes("amount")) errors.push("\u043D\u0435\u0442 \u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u0441 \u0441\u0443\u043C\u043C\u043E\u0439 (\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \xAB\u0421\u0443\u043C\u043C\u0430\xBB \u0438\u043B\u0438 amount)");
     if (errors.length) return { trips: [], errors, warnings };
     let defaultedBase = 0, defaultedTerm = 0;
     const stamp = Date.now().toString(36);
-    const trips = rows.filter(r => r.some(x => String(x).trim())).map((r, idx) => {
+    const trips = rows.filter((r) => r.some((x) => String(x).trim())).map((r, idx) => {
       const line = idx + 2, o = {};
-      head.forEach((f, i) => { if (f) o[f] = String(r[i] ?? '').trim(); });
-      const t = { id: 'imp' + stamp + '_' + idx, payments: [] };
-      for (const f of ['customer', 'customerInn', 'orderNo', 'route', 'docsTrack', 'note']) if (o[f]) t[f] = o[f];
-      for (const f of ['orderDate', 'loadDate', 'unloadDate', 'baseEventDate', 'docsSentDate', 'claimSentDate']) {
+      head.forEach((f, i) => {
+        var _a;
+        if (f) o[f] = String((_a = r[i]) != null ? _a : "").trim();
+      });
+      const t = { id: "imp" + stamp + "_" + idx, payments: [] };
+      for (const f of ["customer", "customerInn", "orderNo", "route", "docsTrack", "note"]) if (o[f]) t[f] = o[f];
+      for (const f of ["orderDate", "loadDate", "unloadDate", "baseEventDate", "docsSentDate", "claimSentDate"]) {
         if (!o[f]) continue;
         const d = normDate(o[f]);
-        if (parse(d)) t[f] = d; else errors.push('строка ' + line + ': не понял дату «' + o[f] + '» в колонке ' + f);
+        if (parse(d)) t[f] = d;
+        else errors.push("\u0441\u0442\u0440\u043E\u043A\u0430 " + line + ": \u043D\u0435 \u043F\u043E\u043D\u044F\u043B \u0434\u0430\u0442\u0443 \xAB" + o[f] + "\xBB \u0432 \u043A\u043E\u043B\u043E\u043D\u043A\u0435 " + f);
       }
       const amt = normNum(o.amount);
-      if (!(amt > 0)) errors.push('строка ' + line + ': сумма «' + (o.amount || '') + '» не число');
+      if (!(amt > 0)) errors.push("\u0441\u0442\u0440\u043E\u043A\u0430 " + line + ": \u0441\u0443\u043C\u043C\u0430 \xAB" + (o.amount || "") + "\xBB \u043D\u0435 \u0447\u0438\u0441\u043B\u043E");
       t.amount = amt > 0 ? amt : 0;
       const td = o.termDays ? normNum(o.termDays) : NaN;
-      if (isFinite(td) && td >= 0) t.termDays = Math.round(td); else { t.termDays = 0; defaultedTerm++; }
-      t.termType = /cal|кал/i.test(o.termType || '') ? 'calendar' : 'bank';
+      if (isFinite(td) && td >= 0) t.termDays = Math.round(td);
+      else {
+        t.termDays = 0;
+        defaultedTerm++;
+      }
+      t.termType = /cal|кал/i.test(o.termType || "") ? "calendar" : "bank";
       const be = normBaseEvent(o.baseEvent);
-      if (be) t.baseEvent = be; else { t.baseEvent = 'unload'; defaultedBase++; }
+      if (be) t.baseEvent = be;
+      else {
+        t.baseEvent = "unload";
+        defaultedBase++;
+      }
       if (o.docsTransitDays) t.docsTransitDays = normNum(o.docsTransitDays) || 7;
-      if (o.penaltyPct) { const p = normNum(o.penaltyPct); if (p > 0) t.penaltyPct = p; }
+      if (o.penaltyPct) {
+        const p = normNum(o.penaltyPct);
+        if (p > 0) t.penaltyPct = p;
+      }
       if (o.paidAmount) {
         const pa = normNum(o.paidAmount), pd = normDate(o.paidDate);
-        if (pa > 0) t.payments.push({ amount: pa, date: parse(pd) ? pd : (t.unloadDate || '') });
+        if (pa > 0) t.payments.push({ amount: pa, date: parse(pd) ? pd : t.unloadDate || "" });
       }
-      if (!t.customer) errors.push('строка ' + line + ': не указан заказчик');
-      if (!o.unloadDate) errors.push('строка ' + line + ': нет даты выгрузки');
+      if (!t.customer) errors.push("\u0441\u0442\u0440\u043E\u043A\u0430 " + line + ": \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A");
+      if (!o.unloadDate) errors.push("\u0441\u0442\u0440\u043E\u043A\u0430 " + line + ": \u043D\u0435\u0442 \u0434\u0430\u0442\u044B \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438");
       return t;
     });
-    if (defaultedBase) warnings.push(defaultedBase + ' рейс(ов) без условия «срок от» — считаю от выгрузки, проверьте');
-    if (defaultedTerm) warnings.push(defaultedTerm + ' рейс(ов) без срока оплаты — поставлен 0 дней, проверьте');
+    if (defaultedBase) warnings.push(defaultedBase + " \u0440\u0435\u0439\u0441(\u043E\u0432) \u0431\u0435\u0437 \u0443\u0441\u043B\u043E\u0432\u0438\u044F \xAB\u0441\u0440\u043E\u043A \u043E\u0442\xBB \u2014 \u0441\u0447\u0438\u0442\u0430\u044E \u043E\u0442 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438, \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435");
+    if (defaultedTerm) warnings.push(defaultedTerm + " \u0440\u0435\u0439\u0441(\u043E\u0432) \u0431\u0435\u0437 \u0441\u0440\u043E\u043A\u0430 \u043E\u043F\u043B\u0430\u0442\u044B \u2014 \u043F\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D 0 \u0434\u043D\u0435\u0439, \u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435");
     return { trips, errors, warnings };
   }
-
-  /** Ключ для поиска дублей при повторном импорте */
-  function tripKey(t) { return [(t.customerInn || t.customer || '').toLowerCase().trim(), (t.orderNo || '').trim(), t.unloadDate || '', Number(t.amount) || 0].join('|'); }
-
+  function tripKey(t) {
+    return [(t.customerInn || t.customer || "").toLowerCase().trim(), (t.orderNo || "").trim(), t.unloadDate || "", Number(t.amount) || 0].join("|");
+  }
   function validateTrip(t) {
     const e = [];
-    if (!t.customer || !t.customer.trim()) e.push('Укажите заказчика');
-    if (!(Number(t.amount) > 0)) e.push('Сумма должна быть больше нуля');
-    if (!t.unloadDate || !parse(t.unloadDate)) e.push('Укажите дату выгрузки');
-    if (!(Number(t.termDays) >= 0) || Number(t.termDays) > 365) e.push('Срок оплаты — от 0 до 365 дней');
-    if (t.customerInn && !/^\d{10}(\d{2})?$/.test(t.customerInn.trim())) e.push('ИНН — 10 или 12 цифр');
-    for (const f of ['loadDate', 'baseEventDate', 'docsSentDate', 'claimSentDate', 'orderDate'])
-      if (t[f] && !parse(t[f])) e.push('Неверная дата: ' + f);
-    if (t.loadDate && t.unloadDate && parse(t.loadDate) && parse(t.unloadDate) && t.loadDate > t.unloadDate) e.push('Дата погрузки позже выгрузки');
+    if (!t.customer || !t.customer.trim()) e.push("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430");
+    if (!(Number(t.amount) > 0)) e.push("\u0421\u0443\u043C\u043C\u0430 \u0434\u043E\u043B\u0436\u043D\u0430 \u0431\u044B\u0442\u044C \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0443\u043B\u044F");
+    if (!t.unloadDate || !parse(t.unloadDate)) e.push("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u0430\u0442\u0443 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438");
+    if (!(Number(t.termDays) >= 0) || Number(t.termDays) > 365) e.push("\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B \u2014 \u043E\u0442 0 \u0434\u043E 365 \u0434\u043D\u0435\u0439");
+    if (t.customerInn && !/^\d{10}(\d{2})?$/.test(t.customerInn.trim())) e.push("\u0418\u041D\u041D \u2014 10 \u0438\u043B\u0438 12 \u0446\u0438\u0444\u0440");
+    for (const f of ["loadDate", "baseEventDate", "docsSentDate", "claimSentDate", "orderDate"])
+      if (t[f] && !parse(t[f])) e.push("\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u0434\u0430\u0442\u0430: " + f);
+    if (t.loadDate && t.unloadDate && parse(t.loadDate) && parse(t.unloadDate) && t.loadDate > t.unloadDate) e.push("\u0414\u0430\u0442\u0430 \u043F\u043E\u0433\u0440\u0443\u0437\u043A\u0438 \u043F\u043E\u0437\u0436\u0435 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438");
     return e;
   }
-
-  return { HOLIDAYS, BASE_EVENTS, DEFAULT_LADDER, CSV_FIELDS, parse, fmt, addDays, diffDays, isWorkingDay, calendarCovers, addWorkingDays, shiftToWorking,
-    computeDue, paidSum, debt, tripStatus, interest395, interest395Trip, contractPenalty, limitationDate, courtAllowedDate, nextAction,
-    customerStats, summary, claimText, reminderText, toIcs, toCsv, parseCsv, tripKey, normDate, normNum, validateTrip, money, ruDate };
+  return {
+    HOLIDAYS,
+    BASE_EVENTS,
+    DEFAULT_LADDER,
+    CSV_FIELDS,
+    parse,
+    fmt,
+    addDays,
+    diffDays,
+    isWorkingDay,
+    calendarCovers,
+    addWorkingDays,
+    shiftToWorking,
+    computeDue,
+    paidSum,
+    debt,
+    tripStatus,
+    interest395,
+    interest395Trip,
+    contractPenalty,
+    limitationDate,
+    courtAllowedDate,
+    nextAction,
+    customerStats,
+    summary,
+    claimText,
+    reminderText,
+    toIcs,
+    toCsv,
+    parseCsv,
+    tripKey,
+    normDate,
+    normNum,
+    validateTrip,
+    money,
+    ruDate
+  };
 });
 
 </script>
 <script>
-/* «Рейс оплачен» — интерфейс. Зависит от core.js (window.Core). */
-(function () {
-  'use strict';
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+(function() {
+  "use strict";
   const C = window.Core;
   const $ = (id) => document.getElementById(id);
-  const KEY = 'reys-oplachen:v1';
-
-  function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-  const TODAY = (new URLSearchParams(location.search).get('today')) || todayStr();
+  const KEY = "reys-oplachen:v1";
+  if (!(window.HTMLDialogElement && HTMLDialogElement.prototype.showModal)) {
+    document.documentElement.classList.add("no-dialog");
+    document.querySelectorAll("dialog").forEach((d) => {
+      try {
+        Object.defineProperty(d, "open", { get() {
+          return d.hasAttribute("open");
+        }, configurable: true });
+      } catch (e) {
+      }
+      d.showModal = () => {
+        d.setAttribute("open", "");
+        d.scrollTop = 0;
+        document.body.classList.add("dlg-open");
+      };
+      d.close = () => {
+        d.removeAttribute("open");
+        if (!document.querySelector("dialog[open]")) document.body.classList.remove("dlg-open");
+      };
+    });
+  }
+  function todayStr() {
+    const d = /* @__PURE__ */ new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  const TODAY = new URLSearchParams(location.search).get("today") || todayStr();
   const rel = (n) => C.addDays(TODAY, n);
-
-  // ---------- хранилище ----------
-  function load() { try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Не удалось сохранить в браузере — сделайте экспорт CSV'); } }
-
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (e) {
+      toast("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0432 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0435 \u2014 \u0441\u0434\u0435\u043B\u0430\u0439\u0442\u0435 \u044D\u043A\u0441\u043F\u043E\u0440\u0442 CSV");
+    }
+  }
   function demoTrips() {
     return [
-      { id: 'd1', demo: true, customer: 'ООО «СтройМаркет»', customerInn: '6234000001', orderNo: '418', orderDate: rel(-48), route: 'Рязань — Москва (Южные ворота)', loadDate: rel(-45), unloadDate: rel(-44), amount: 68000, termDays: 10, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-36), docsSentDate: rel(-42), docsTrack: 'СДЭК 1029384756', docsTransitDays: 7, payments: [] },
-      { id: 'd2', demo: true, customer: 'ООО «АгроЛогистик»', customerInn: '7705000002', orderNo: 'А-77/2', orderDate: rel(-30), route: 'Тула — Санкт-Петербург', loadDate: rel(-28), unloadDate: rel(-26), amount: 142000, termDays: 30, termType: 'bank', baseEvent: 'scans', baseEventDate: rel(-24), docsSentDate: rel(-25), payments: [{ amount: 50000, date: rel(-5) }] },
-      { id: 'd3', demo: true, customer: 'ИП Соколов А. В.', customerInn: '622900000003', orderNo: '15', orderDate: rel(-12), route: 'Рязань — Владимир', loadDate: rel(-10), unloadDate: rel(-9), amount: 31500, termDays: 5, termType: 'bank', baseEvent: 'unload', payments: [] },
-      { id: 'd4', demo: true, customer: 'ООО «ТК Меридиан»', customerInn: '7707000004', orderNo: 'М-2031', orderDate: rel(-9), route: 'Москва — Калуга', loadDate: rel(-7), unloadDate: rel(-6), amount: 54000, termDays: 7, termType: 'bank', baseEvent: 'originals', docsSentDate: rel(-1), docsTrack: 'Почта 39000012345678', docsTransitDays: 7, payments: [] },
-      { id: 'd5', demo: true, customer: 'ООО «ТК Меридиан»', customerInn: '7707000004', orderNo: 'М-1987', orderDate: rel(-70), route: 'Москва — Рязань', loadDate: rel(-68), unloadDate: rel(-67), amount: 47000, termDays: 7, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-58), docsSentDate: rel(-65), payments: [{ amount: 47000, date: rel(-40) }] },
-      { id: 'd6', demo: true, customer: 'ООО «Фермер Центр»', customerInn: '6200000006', orderNo: '7', orderDate: rel(-6), route: 'Рязань — Липецк', loadDate: rel(-4), unloadDate: rel(-3), amount: 39000, termDays: 3, termType: 'bank', baseEvent: 'unload', payments: [] },
-      { id: 'd7', demo: true, customer: 'ООО «АгроЛогистик»', customerInn: '7705000002', orderNo: 'А-61', orderDate: rel(-80), route: 'Тула — Москва', loadDate: rel(-78), unloadDate: rel(-77), amount: 58000, termDays: 30, termType: 'bank', baseEvent: 'scans', baseEventDate: rel(-75), payments: [{ amount: 58000, date: rel(-20) }] },
-      { id: 'd9', demo: true, customer: 'ООО «Окский Терминал»', customerInn: '6229000009', orderNo: 'ОТ-58', orderDate: rel(-8), route: 'Рязань — Ярославль', loadDate: rel(-6), unloadDate: rel(-5), amount: 47500, termDays: 15, termType: 'bank', baseEvent: 'originals', payments: [] },
-      { id: 'd8', demo: true, customer: 'ООО «ПромСнаб»', customerInn: '7710000008', orderNo: '2026/311', orderDate: rel(-120), route: 'Рязань — Нижний Новгород', loadDate: rel(-118), unloadDate: rel(-117), amount: 96000, termDays: 15, termType: 'bank', baseEvent: 'originals', baseEventDate: rel(-105), docsSentDate: rel(-114), payments: [], claimSentDate: rel(-35), penaltyPct: 0.1, penaltyCapPct: 10 },
+      { id: "d1", demo: true, customer: "\u041E\u041E\u041E \xAB\u0421\u0442\u0440\u043E\u0439\u041C\u0430\u0440\u043A\u0435\u0442\xBB", customerInn: "6234000001", orderNo: "418", orderDate: rel(-48), route: "\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u041C\u043E\u0441\u043A\u0432\u0430 (\u042E\u0436\u043D\u044B\u0435 \u0432\u043E\u0440\u043E\u0442\u0430)", loadDate: rel(-45), unloadDate: rel(-44), amount: 68e3, termDays: 10, termType: "bank", baseEvent: "originals", baseEventDate: rel(-36), docsSentDate: rel(-42), docsTrack: "\u0421\u0414\u042D\u041A 1029384756", docsTransitDays: 7, payments: [] },
+      { id: "d2", demo: true, customer: "\u041E\u041E\u041E \xAB\u0410\u0433\u0440\u043E\u041B\u043E\u0433\u0438\u0441\u0442\u0438\u043A\xBB", customerInn: "7705000002", orderNo: "\u0410-77/2", orderDate: rel(-30), route: "\u0422\u0443\u043B\u0430 \u2014 \u0421\u0430\u043D\u043A\u0442-\u041F\u0435\u0442\u0435\u0440\u0431\u0443\u0440\u0433", loadDate: rel(-28), unloadDate: rel(-26), amount: 142e3, termDays: 30, termType: "bank", baseEvent: "scans", baseEventDate: rel(-24), docsSentDate: rel(-25), payments: [{ amount: 5e4, date: rel(-5) }] },
+      { id: "d3", demo: true, customer: "\u0418\u041F \u0421\u043E\u043A\u043E\u043B\u043E\u0432 \u0410. \u0412.", customerInn: "622900000003", orderNo: "15", orderDate: rel(-12), route: "\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u0412\u043B\u0430\u0434\u0438\u043C\u0438\u0440", loadDate: rel(-10), unloadDate: rel(-9), amount: 31500, termDays: 5, termType: "bank", baseEvent: "unload", payments: [] },
+      { id: "d4", demo: true, customer: "\u041E\u041E\u041E \xAB\u0422\u041A \u041C\u0435\u0440\u0438\u0434\u0438\u0430\u043D\xBB", customerInn: "7707000004", orderNo: "\u041C-2031", orderDate: rel(-9), route: "\u041C\u043E\u0441\u043A\u0432\u0430 \u2014 \u041A\u0430\u043B\u0443\u0433\u0430", loadDate: rel(-7), unloadDate: rel(-6), amount: 54e3, termDays: 7, termType: "bank", baseEvent: "originals", docsSentDate: rel(-1), docsTrack: "\u041F\u043E\u0447\u0442\u0430 39000012345678", docsTransitDays: 7, payments: [] },
+      { id: "d5", demo: true, customer: "\u041E\u041E\u041E \xAB\u0422\u041A \u041C\u0435\u0440\u0438\u0434\u0438\u0430\u043D\xBB", customerInn: "7707000004", orderNo: "\u041C-1987", orderDate: rel(-70), route: "\u041C\u043E\u0441\u043A\u0432\u0430 \u2014 \u0420\u044F\u0437\u0430\u043D\u044C", loadDate: rel(-68), unloadDate: rel(-67), amount: 47e3, termDays: 7, termType: "bank", baseEvent: "originals", baseEventDate: rel(-58), docsSentDate: rel(-65), payments: [{ amount: 47e3, date: rel(-40) }] },
+      { id: "d6", demo: true, customer: "\u041E\u041E\u041E \xAB\u0424\u0435\u0440\u043C\u0435\u0440 \u0426\u0435\u043D\u0442\u0440\xBB", customerInn: "6200000006", orderNo: "7", orderDate: rel(-6), route: "\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u041B\u0438\u043F\u0435\u0446\u043A", loadDate: rel(-4), unloadDate: rel(-3), amount: 39e3, termDays: 3, termType: "bank", baseEvent: "unload", payments: [] },
+      { id: "d7", demo: true, customer: "\u041E\u041E\u041E \xAB\u0410\u0433\u0440\u043E\u041B\u043E\u0433\u0438\u0441\u0442\u0438\u043A\xBB", customerInn: "7705000002", orderNo: "\u0410-61", orderDate: rel(-80), route: "\u0422\u0443\u043B\u0430 \u2014 \u041C\u043E\u0441\u043A\u0432\u0430", loadDate: rel(-78), unloadDate: rel(-77), amount: 58e3, termDays: 30, termType: "bank", baseEvent: "scans", baseEventDate: rel(-75), payments: [{ amount: 58e3, date: rel(-20) }] },
+      { id: "d9", demo: true, customer: "\u041E\u041E\u041E \xAB\u041E\u043A\u0441\u043A\u0438\u0439 \u0422\u0435\u0440\u043C\u0438\u043D\u0430\u043B\xBB", customerInn: "6229000009", orderNo: "\u041E\u0422-58", orderDate: rel(-8), route: "\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u042F\u0440\u043E\u0441\u043B\u0430\u0432\u043B\u044C", loadDate: rel(-6), unloadDate: rel(-5), amount: 47500, termDays: 15, termType: "bank", baseEvent: "originals", payments: [] },
+      { id: "d8", demo: true, customer: "\u041E\u041E\u041E \xAB\u041F\u0440\u043E\u043C\u0421\u043D\u0430\u0431\xBB", customerInn: "7710000008", orderNo: "2026/311", orderDate: rel(-120), route: "\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u041D\u0438\u0436\u043D\u0438\u0439 \u041D\u043E\u0432\u0433\u043E\u0440\u043E\u0434", loadDate: rel(-118), unloadDate: rel(-117), amount: 96e3, termDays: 15, termType: "bank", baseEvent: "originals", baseEventDate: rel(-105), docsSentDate: rel(-114), payments: [], claimSentDate: rel(-35), penaltyPct: 0.1, penaltyCapPct: 10 }
     ];
   }
-
-  const DEFAULT_PROFILE = { name: '', inn: '', signer: '', contacts: '', bank: '' };
-  // Ключевая ставка ЦБ РФ (дата начала действия → %), источник: cbr.ru/hd_base/KeyRate, проверено 26.10.2026 (решение 23.10.2026 — 14% сохранена)
+  const DEFAULT_PROFILE = { name: "", inn: "", signer: "", contacts: "", bank: "" };
   const DEFAULT_RATES = [
-    { from: '2024-01-01', rate: 16 }, { from: '2024-07-29', rate: 18 }, { from: '2024-09-16', rate: 19 }, { from: '2024-10-28', rate: 21 },
-    { from: '2025-06-09', rate: 20 }, { from: '2025-07-28', rate: 18 }, { from: '2025-09-15', rate: 17 }, { from: '2025-10-27', rate: 16.5 },
-    { from: '2025-12-22', rate: 16 }, { from: '2026-02-16', rate: 15.5 }, { from: '2026-03-23', rate: 15 }, { from: '2026-04-27', rate: 14.5 },
-    { from: '2026-06-22', rate: 14.25 }, { from: '2026-07-27', rate: 14 },
+    { from: "2024-01-01", rate: 16 },
+    { from: "2024-07-29", rate: 18 },
+    { from: "2024-09-16", rate: 19 },
+    { from: "2024-10-28", rate: 21 },
+    { from: "2025-06-09", rate: 20 },
+    { from: "2025-07-28", rate: 18 },
+    { from: "2025-09-15", rate: 17 },
+    { from: "2025-10-27", rate: 16.5 },
+    { from: "2025-12-22", rate: 16 },
+    { from: "2026-02-16", rate: 15.5 },
+    { from: "2026-03-23", rate: 15 },
+    { from: "2026-04-27", rate: 14.5 },
+    { from: "2026-06-22", rate: 14.25 },
+    { from: "2026-07-27", rate: 14 }
   ];
-  let state = load() || { trips: demoTrips(), profile: { ...DEFAULT_PROFILE }, rates: DEFAULT_RATES.slice(), demo: true };
-  if (!state.rates || !state.rates.length || (state.rates.length === 1 && ['2026-07-27', '2026-09-12'].includes(state.rates[0].from) && state.rates[0].rate === 14)) state.rates = DEFAULT_RATES.slice(); // миграция со старой версии
-  let filter = 'open';
+  let state = load() || { trips: demoTrips(), profile: __spreadValues({}, DEFAULT_PROFILE), rates: DEFAULT_RATES.slice(), demo: true };
+  if (!state.rates || !state.rates.length || state.rates.length === 1 && ["2026-07-27", "2026-09-12"].includes(state.rates[0].from) && state.rates[0].rate === 14) state.rates = DEFAULT_RATES.slice();
+  let filter = "open";
   let editingId = null;
-
-  // ---------- утилиты UI ----------
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const rub = (x) => C.money(x).replace(/,00$/, '') + ' ₽';
+  const esc = (s) => String(s != null ? s : "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const rub = (x) => C.money(x).replace(/,00$/, "") + " \u20BD";
   let toastTimer;
-  function track(goal) { try { if (window.ym && window.METRIKA_ID) window.ym(window.METRIKA_ID, 'reachGoal', goal); } catch (e) { /* статистика необязательна */ } }
-  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600); }
-  function plural(n, a, b, c) { n = Math.abs(n) % 100; const n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
-  function tripsWord(n) { return n + ' ' + plural(n, 'рейс', 'рейса', 'рейсов'); }
-
-  // ---------- рендер ----------
-  function render() {
-    $('demoNote').hidden = !state.trips.some((t) => t.demo);
-    $('todayLbl').textContent = C.ruDate(TODAY);
-    const own = state.trips.filter((t) => !t.demo).length;
-    $('onboard').hidden = state.trips.length > 0;
-    $('backupNote').hidden = !(own >= 3 && (!state.lastBackup || C.addDays(state.lastBackup, 7) <= TODAY) && (!state.backupSnooze || state.backupSnooze <= TODAY));
-    $('metrikaNote').hidden = !window.METRIKA_ID;
-    const s = C.summary(state.trips, TODAY);
-    $('sDebt').textContent = rub(s.debt);
-    const open = state.trips.filter((t) => C.debt(t) > 0).length;
-    $('sDebtSub').textContent = tripsWord(open) + ' не оплачено';
-    $('sOver').textContent = rub(s.overdue);
-    const interest = state.trips.reduce((acc, t) => { const st = C.tripStatus(t, TODAY); return st.code === 'overdue' ? acc + C.interest395Trip(t, TODAY, state.rates).total : acc; }, 0);
-    $('sOverSub').textContent = s.overdueCount ? tripsWord(s.overdueCount) + ' · проценты ст. 395 ≈ ' + rub(interest) : 'нет просрочек';
-    $('sSoon').textContent = rub(s.soon);
-    $('sSoonSub').textContent = s.soonCount ? tripsWord(s.soonCount) : 'нет';
-    $('sWait').textContent = rub(s.waitDocs);
-    $('sWaitSub').textContent = s.waitDocsCount ? tripsWord(s.waitDocsCount) + ' · нет даты получения документов' : 'нет';
-    renderTrips(); renderCustomers();
+  function track(goal) {
+    try {
+      if (window.ym && window.METRIKA_ID) window.ym(window.METRIKA_ID, "reachGoal", goal);
+    } catch (e) {
+    }
   }
-
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      t.hidden = true;
+    }, 2600);
+  }
+  function plural(n, a, b, c) {
+    n = Math.abs(n) % 100;
+    const n1 = n % 10;
+    if (n > 10 && n < 20) return c;
+    if (n1 > 1 && n1 < 5) return b;
+    if (n1 === 1) return a;
+    return c;
+  }
+  function tripsWord(n) {
+    return n + " " + plural(n, "\u0440\u0435\u0439\u0441", "\u0440\u0435\u0439\u0441\u0430", "\u0440\u0435\u0439\u0441\u043E\u0432");
+  }
+  function render() {
+    $("demoNote").hidden = !state.trips.some((t) => t.demo);
+    $("todayLbl").textContent = C.ruDate(TODAY);
+    const own = state.trips.filter((t) => !t.demo).length;
+    $("onboard").hidden = state.trips.length > 0;
+    $("backupNote").hidden = !(own >= 3 && (!state.lastBackup || C.addDays(state.lastBackup, 7) <= TODAY) && (!state.backupSnooze || state.backupSnooze <= TODAY));
+    $("metrikaNote").hidden = !window.METRIKA_ID;
+    const s = C.summary(state.trips, TODAY);
+    $("sDebt").textContent = rub(s.debt);
+    const open = state.trips.filter((t) => C.debt(t) > 0).length;
+    $("sDebtSub").textContent = tripsWord(open) + " \u043D\u0435 \u043E\u043F\u043B\u0430\u0447\u0435\u043D\u043E";
+    $("sOver").textContent = rub(s.overdue);
+    const interest = state.trips.reduce((acc, t) => {
+      const st = C.tripStatus(t, TODAY);
+      return st.code === "overdue" ? acc + C.interest395Trip(t, TODAY, state.rates).total : acc;
+    }, 0);
+    $("sOverSub").textContent = s.overdueCount ? tripsWord(s.overdueCount) + " \xB7 \u043F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u0441\u0442. 395 \u2248 " + rub(interest) : "\u043D\u0435\u0442 \u043F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043A";
+    $("sSoon").textContent = rub(s.soon);
+    $("sSoonSub").textContent = s.soonCount ? tripsWord(s.soonCount) : "\u043D\u0435\u0442";
+    $("sWait").textContent = rub(s.waitDocs);
+    $("sWaitSub").textContent = s.waitDocsCount ? tripsWord(s.waitDocsCount) + " \xB7 \u043D\u0435\u0442 \u0434\u0430\u0442\u044B \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432" : "\u043D\u0435\u0442";
+    renderTrips();
+    renderCustomers();
+  }
   function matches(t, q) {
-    if (!q) return true; q = q.toLowerCase();
-    return [t.customer, t.customerInn, t.route, t.orderNo, t.docsTrack].some((x) => String(x || '').toLowerCase().includes(q));
+    if (!q) return true;
+    q = q.toLowerCase();
+    return [t.customer, t.customerInn, t.route, t.orderNo, t.docsTrack].some((x) => String(x || "").toLowerCase().includes(q));
   }
   const ORDER = { overdue: 0, soon: 1, wait_docs: 2, waiting: 3, paid: 4 };
-
   function renderTrips() {
-    const q = $('search').value.trim();
-    const rows = state.trips.map((t) => ({ t, st: C.tripStatus(t, TODAY) }))
-      .filter(({ t, st }) => matches(t, q) && (filter === 'all' || (filter === 'open' ? st.code !== 'paid' : st.code === filter)))
-      .sort((a, b) => (ORDER[a.st.code] - ORDER[b.st.code]) || ((b.st.overdueDays || 0) - (a.st.overdueDays || 0)) || String(a.st.due || '9').localeCompare(String(b.st.due || '9')));
-    const box = $('tripList');
+    const q = $("search").value.trim();
+    const rows = state.trips.map((t) => ({ t, st: C.tripStatus(t, TODAY) })).filter(({ t, st }) => matches(t, q) && (filter === "all" || (filter === "open" ? st.code !== "paid" : st.code === filter))).sort((a, b) => ORDER[a.st.code] - ORDER[b.st.code] || (b.st.overdueDays || 0) - (a.st.overdueDays || 0) || String(a.st.due || "9").localeCompare(String(b.st.due || "9")));
+    const box = $("tripList");
     if (!rows.length) {
-      box.innerHTML = '<div class="empty">' + (state.trips.length ? 'Под этот фильтр рейсов нет.' : 'Рейсов пока нет. Нажмите «+ Рейс» или импортируйте CSV из Excel.') + '</div>';
+      box.innerHTML = '<div class="empty">' + (state.trips.length ? "\u041F\u043E\u0434 \u044D\u0442\u043E\u0442 \u0444\u0438\u043B\u044C\u0442\u0440 \u0440\u0435\u0439\u0441\u043E\u0432 \u043D\u0435\u0442." : "\u0420\u0435\u0439\u0441\u043E\u0432 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB+ \u0420\u0435\u0439\u0441\xBB \u0438\u043B\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u0443\u0439\u0442\u0435 CSV \u0438\u0437 Excel.") + "</div>";
       return;
     }
     box.innerHTML = rows.map(({ t, st }) => {
       const act = C.nextAction(t, TODAY);
       const lim = C.limitationDate(t);
-      const limWarn = lim && st.code !== 'paid' && C.diffDays(TODAY, lim) <= 90;
-      const pillCls = st.code === 'overdue' ? 'overdue' : st.code === 'soon' ? 'soon' : st.code === 'paid' ? 'paid' : '';
-      const pillTxt = st.code === 'overdue' ? 'Просрочка ' + st.overdueDays + ' дн.' : st.label;
-      const dueTxt = st.due ? 'срок ' + C.ruDate(st.due) + (st.estimated ? ' (оценка)' : '') : esc(st.reason);
-      return '<button class="trip" data-id="' + esc(t.id) + '" data-s="' + st.code + '">' +
-        '<span class="stripe" aria-hidden="true"></span>' +
-        '<span class="trip-main"><span class="trip-title">' + esc(t.customer) + (t.orderNo ? ' <span class="muted">· заявка ' + esc(t.orderNo) + '</span>' : '') + '</span>' +
-        '<span class="trip-meta"><span>' + esc(t.route || 'маршрут не указан') + '</span><span>выгрузка ' + C.ruDate(t.unloadDate) + '</span><span>' + dueTxt + '</span></span>' +
-        (act ? '<span class="action-hint">→ ' + esc(act.title) + '</span>' : '') +
-        (limWarn ? '<span class="action-hint">Срок исковой давности (1 год) истекает примерно '  + C.ruDate(lim) + '</span>' : '') +
-        '</span>' +
-        '<span class="trip-side"><span class="amount">' + rub(st.code === 'paid' ? Number(t.amount) : st.debt) + '</span><span class="pill ' + pillCls + '">' + esc(pillTxt) + '</span></span>' +
-        '</button>';
-    }).join('');
+      const limWarn = lim && st.code !== "paid" && C.diffDays(TODAY, lim) <= 90;
+      const pillCls = st.code === "overdue" ? "overdue" : st.code === "soon" ? "soon" : st.code === "paid" ? "paid" : "";
+      const pillTxt = st.code === "overdue" ? "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u043A\u0430 " + st.overdueDays + " \u0434\u043D." : st.label;
+      const dueTxt = st.due ? "\u0441\u0440\u043E\u043A " + C.ruDate(st.due) + (st.estimated ? " (\u043E\u0446\u0435\u043D\u043A\u0430)" : "") : esc(st.reason);
+      return '<button class="trip" data-id="' + esc(t.id) + '" data-s="' + st.code + '"><span class="stripe" aria-hidden="true"></span><span class="trip-main"><span class="trip-title">' + esc(t.customer) + (t.orderNo ? ' <span class="muted">\xB7 \u0437\u0430\u044F\u0432\u043A\u0430 ' + esc(t.orderNo) + "</span>" : "") + '</span><span class="trip-meta"><span>' + esc(t.route || "\u043C\u0430\u0440\u0448\u0440\u0443\u0442 \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D") + "</span><span>\u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0430 " + C.ruDate(t.unloadDate) + "</span><span>" + dueTxt + "</span></span>" + (act ? '<span class="action-hint">\u2192 ' + esc(act.title) + "</span>" : "") + (limWarn ? '<span class="action-hint">\u0421\u0440\u043E\u043A \u0438\u0441\u043A\u043E\u0432\u043E\u0439 \u0434\u0430\u0432\u043D\u043E\u0441\u0442\u0438 (1 \u0433\u043E\u0434) \u0438\u0441\u0442\u0435\u043A\u0430\u0435\u0442 \u043F\u0440\u0438\u043C\u0435\u0440\u043D\u043E ' + C.ruDate(lim) + "</span>" : "") + '</span><span class="trip-side"><span class="amount">' + rub(st.code === "paid" ? Number(t.amount) : st.debt) + '</span><span class="pill ' + pillCls + '">' + esc(pillTxt) + "</span></span></button>";
+    }).join("");
   }
-
   function renderCustomers() {
     const cs = C.customerStats(state.trips, TODAY);
-    const riskTxt = { high: '<span class="pill overdue">высокий</span>', mid: '<span class="pill soon">средний</span>', low: '<span class="pill paid">низкий</span>' };
-    $('custBody').innerHTML = cs.length ? cs.map((m) => '<tr><td>' + esc(m.name) + (m.inn ? '<div class="muted small num">ИНН ' + esc(m.inn) + '</div>' : '') + '</td>' +
-      '<td class="r num">' + m.trips + '</td><td class="r num">' + rub(m.debt) + '</td><td class="r num">' + (m.overdueDebt ? rub(m.overdueDebt) : '—') + '</td>' +
-      '<td class="r num">' + (m.maxOverdue ? m.maxOverdue + ' дн.' : '—') + '</td><td class="r num">' + (m.avgDelay == null ? '—' : m.avgDelay + ' дн.') + '</td><td>' + riskTxt[m.risk] + '</td></tr>').join('')
-      : '<tr><td colspan="7" class="muted">Заказчиков пока нет.</td></tr>';
+    const riskTxt = { high: '<span class="pill overdue">\u0432\u044B\u0441\u043E\u043A\u0438\u0439</span>', mid: '<span class="pill soon">\u0441\u0440\u0435\u0434\u043D\u0438\u0439</span>', low: '<span class="pill paid">\u043D\u0438\u0437\u043A\u0438\u0439</span>' };
+    $("custBody").innerHTML = cs.length ? cs.map((m) => "<tr><td>" + esc(m.name) + (m.inn ? '<div class="muted small num">\u0418\u041D\u041D ' + esc(m.inn) + "</div>" : "") + '</td><td class="r num">' + m.trips + '</td><td class="r num">' + rub(m.debt) + '</td><td class="r num">' + (m.overdueDebt ? rub(m.overdueDebt) : "\u2014") + '</td><td class="r num">' + (m.maxOverdue ? m.maxOverdue + " \u0434\u043D." : "\u2014") + '</td><td class="r num">' + (m.avgDelay == null ? "\u2014" : m.avgDelay + " \u0434\u043D.") + "</td><td>" + riskTxt[m.risk] + "</td></tr>").join("") : '<tr><td colspan="7" class="muted">\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u0432 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442.</td></tr>';
   }
-
-  // ---------- вкладки и фильтры ----------
-  document.querySelectorAll('nav.tabs button').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('nav.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
-    ['trips', 'customers', 'settings', 'help'].forEach((n) => { $('tab-' + n).hidden = n !== b.dataset.tab; });
-    if (b.dataset.tab === 'settings') fillProfile();
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    ["trips", "customers", "settings", "help"].forEach((n) => {
+      $("tab-" + n).hidden = n !== b.dataset.tab;
+    });
+    if (b.dataset.tab === "settings") fillProfile();
   }));
-  document.querySelectorAll('#filters .chip').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll("#filters .chip").forEach((b) => b.addEventListener("click", () => {
     filter = b.dataset.f;
-    document.querySelectorAll('#filters .chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    document.querySelectorAll("#filters .chip").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     renderTrips();
   }));
-  $('search').addEventListener('input', renderTrips);
-  $('tripList').addEventListener('click', (e) => { const b = e.target.closest('.trip'); if (b) openView(b.dataset.id); });
-  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
-
-  // ---------- форма рейса ----------
-  const F = ['customer', 'customerInn', 'orderNo', 'orderDate', 'route', 'amount', 'loadDate', 'unloadDate', 'docsSentDate', 'docsTrack', 'docsTransitDays', 'termDays', 'termType', 'baseEvent', 'baseEventDate', 'penaltyPct', 'penaltyCapPct', 'claimSentDate', 'note'];
-  const fid = (f) => 'f' + f[0].toUpperCase() + f.slice(1);
-  $('fBaseEvent').innerHTML = Object.entries(C.BASE_EVENTS).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('');
-
+  $("search").addEventListener("input", renderTrips);
+  $("tripList").addEventListener("click", (e) => {
+    const b = e.target.closest(".trip");
+    if (b) openView(b.dataset.id);
+  });
+  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+  const F = ["customer", "customerInn", "orderNo", "orderDate", "route", "amount", "loadDate", "unloadDate", "docsSentDate", "docsTrack", "docsTransitDays", "termDays", "termType", "baseEvent", "baseEventDate", "penaltyPct", "penaltyCapPct", "claimSentDate", "note"];
+  const fid = (f) => "f" + f[0].toUpperCase() + f.slice(1);
+  $("fBaseEvent").innerHTML = Object.entries(C.BASE_EVENTS).map(([k, v]) => '<option value="' + k + '">' + v + "</option>").join("");
   function openForm(id) {
     editingId = id || null;
-    const t = id ? state.trips.find((x) => x.id === id) : { termDays: 10, termType: 'bank', baseEvent: 'originals', docsTransitDays: 7, unloadDate: TODAY };
-    F.forEach((f) => { $(fid(f)).value = t[f] ?? ''; });
-    $('dlgTripTitle').textContent = id ? 'Редактировать рейс' : 'Новый рейс';
-    $('btnDelete').hidden = !id;
-    $('formErrors').hidden = true;
+    const t = id ? state.trips.find((x) => x.id === id) : { termDays: 10, termType: "bank", baseEvent: "originals", docsTransitDays: 7, unloadDate: TODAY };
+    F.forEach((f) => {
+      var _a;
+      $(fid(f)).value = (_a = t[f]) != null ? _a : "";
+    });
+    $("dlgTripTitle").textContent = id ? "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0440\u0435\u0439\u0441" : "\u041D\u043E\u0432\u044B\u0439 \u0440\u0435\u0439\u0441";
+    $("btnDelete").hidden = !id;
+    $("formErrors").hidden = true;
+    $("formMore").open = ["customerInn", "orderNo", "orderDate", "route", "loadDate", "docsTrack", "penaltyPct", "penaltyCapPct", "claimSentDate", "note"].some((f) => t[f] !== void 0 && t[f] !== "" && t[f] !== null);
     updateDuePreview();
-    $('dlgTrip').showModal();
+    $("dlgTrip").showModal();
   }
   function readForm() {
-    const t = {}; F.forEach((f) => { t[f] = $(fid(f)).value.trim(); });
-    ['amount', 'termDays', 'docsTransitDays', 'penaltyPct', 'penaltyCapPct'].forEach((f) => { t[f] = t[f] === '' ? '' : Number(String(t[f]).replace(',', '.')); });
+    const t = {};
+    F.forEach((f) => {
+      t[f] = $(fid(f)).value.trim();
+    });
+    ["amount", "termDays", "docsTransitDays", "penaltyPct", "penaltyCapPct"].forEach((f) => {
+      t[f] = t[f] === "" ? "" : Number(String(t[f]).replace(",", "."));
+    });
     return t;
   }
   function updateDuePreview() {
     const t = readForm();
-    if (!t.unloadDate) { $('duePreview').textContent = ''; return; }
+    if (!t.unloadDate) {
+      $("duePreview").textContent = "";
+      return;
+    }
     const d = C.computeDue(t);
-    $('duePreview').textContent = d.due ? 'Срок оплаты: ' + C.ruDate(d.due) + (d.estimated ? ' — оценка, ' + d.reason : '') : 'Срок пока не начался: ' + d.reason.replace(/^срок не начался: /, '') + '. Укажите дату события или дату отправки документов.';
+    $("duePreview").textContent = d.due ? "\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B: " + C.ruDate(d.due) + (d.estimated ? " \u2014 \u043E\u0446\u0435\u043D\u043A\u0430, " + d.reason : "") : "\u0421\u0440\u043E\u043A \u043F\u043E\u043A\u0430 \u043D\u0435 \u043D\u0430\u0447\u0430\u043B\u0441\u044F: " + d.reason.replace(/^срок не начался: /, "") + ". \u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u0430\u0442\u0443 \u0441\u043E\u0431\u044B\u0442\u0438\u044F \u0438\u043B\u0438 \u0434\u0430\u0442\u0443 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432.";
   }
-  F.forEach((f) => $(fid(f)).addEventListener('input', updateDuePreview));
-  $('tripForm').addEventListener('submit', (e) => {
+  F.forEach((f) => $(fid(f)).addEventListener("input", updateDuePreview));
+  $("tripForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const t = readForm();
     const errs = C.validateTrip(t);
-    if (errs.length) { $('formErrors').innerHTML = errs.map((x) => '<li>' + esc(x) + '</li>').join(''); $('formErrors').hidden = false; return; }
-    if (editingId) { const i = state.trips.findIndex((x) => x.id === editingId); state.trips[i] = { ...state.trips[i], ...t, demo: state.trips[i].demo }; }
-    else { state.trips.push({ ...t, id: 't' + Date.now().toString(36), payments: [] }); track('trip_add'); }
-    save(); render(); $('dlgTrip').close(); toast(editingId ? 'Рейс сохранён' : 'Рейс добавлен');
+    if (errs.length) {
+      $("formErrors").innerHTML = errs.map((x) => "<li>" + esc(x) + "</li>").join("");
+      $("formErrors").hidden = false;
+      if (errs.some((x) => /ИНН|неустой|заявк|претенз/i.test(x))) $("formMore").open = true;
+      $("formErrors").scrollIntoView({ block: "center" });
+      return;
+    }
+    if (editingId) {
+      const i = state.trips.findIndex((x) => x.id === editingId);
+      state.trips[i] = __spreadProps(__spreadValues(__spreadValues({}, state.trips[i]), t), { demo: state.trips[i].demo });
+    } else {
+      state.trips.push(__spreadProps(__spreadValues({}, t), { id: "t" + Date.now().toString(36), payments: [] }));
+      track("trip_add");
+    }
+    save();
+    render();
+    $("dlgTrip").close();
+    toast(editingId ? "\u0420\u0435\u0439\u0441 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D" : "\u0420\u0435\u0439\u0441 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D");
   });
-  $('btnDelete').addEventListener('click', () => {
-    const b = $('btnDelete');
-    if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Точно удалить? Нажмите ещё раз'; setTimeout(() => { b.dataset.confirm = ''; b.textContent = 'Удалить рейс'; }, 4000); return; }
-    state.trips = state.trips.filter((x) => x.id !== editingId); b.dataset.confirm = ''; b.textContent = 'Удалить рейс';
-    save(); render(); $('dlgTrip').close(); toast('Рейс удалён');
+  $("btnDelete").addEventListener("click", () => {
+    const b = $("btnDelete");
+    if (b.dataset.confirm !== "1") {
+      b.dataset.confirm = "1";
+      b.textContent = "\u0422\u043E\u0447\u043D\u043E \u0443\u0434\u0430\u043B\u0438\u0442\u044C? \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437";
+      setTimeout(() => {
+        b.dataset.confirm = "";
+        b.textContent = "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0440\u0435\u0439\u0441";
+      }, 4e3);
+      return;
+    }
+    state.trips = state.trips.filter((x) => x.id !== editingId);
+    b.dataset.confirm = "";
+    b.textContent = "\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0440\u0435\u0439\u0441";
+    save();
+    render();
+    $("dlgTrip").close();
+    toast("\u0420\u0435\u0439\u0441 \u0443\u0434\u0430\u043B\u0451\u043D");
   });
-  $('btnAdd').addEventListener('click', () => openForm());
-
-  // ---------- карточка рейса ----------
+  $("btnAdd").addEventListener("click", () => openForm());
   function openView(id) {
-    const t = state.trips.find((x) => x.id === id); if (!t) return;
+    const t = state.trips.find((x) => x.id === id);
+    if (!t) return;
     const st = C.tripStatus(t, TODAY);
     const act = C.nextAction(t, TODAY);
-    const i395 = st.code === 'overdue' ? C.interest395Trip(t, TODAY, state.rates) : null;
-    const pen = st.code === 'overdue' ? C.contractPenalty(st.debt, st.overdueDays, Number(t.penaltyPct) || 0, Number(t.penaltyCapPct) || 0) : 0;
+    const i395 = st.code === "overdue" ? C.interest395Trip(t, TODAY, state.rates) : null;
+    const pen = st.code === "overdue" ? C.contractPenalty(st.debt, st.overdueDays, Number(t.penaltyPct) || 0, Number(t.penaltyCapPct) || 0) : 0;
     const lim = C.limitationDate(t);
-    $('viewTitle').textContent = t.customer + (t.orderNo ? ' · заявка ' + t.orderNo : '');
-    const pays = (t.payments || []).map((p, i) => '<li class="num">' + C.ruDate(p.date) + ' — ' + rub(p.amount) + ' <button class="ghost small danger" data-delpay="' + i + '">убрать</button></li>').join('');
-    $('viewBody').innerHTML =
-      '<dl class="kv">' +
-      '<dt>Статус</dt><dd><span class="pill ' + (st.code === 'overdue' ? 'overdue' : st.code === 'soon' ? 'soon' : st.code === 'paid' ? 'paid' : '') + '">' + esc(st.code === 'overdue' ? 'Просрочка ' + st.overdueDays + ' дн.' : st.label) + '</span></dd>' +
-      '<dt>Сумма / долг</dt><dd class="num">' + rub(Number(t.amount)) + ' / ' + rub(C.debt(t)) + '</dd>' +
-      '<dt>Маршрут</dt><dd>' + esc(t.route || '—') + '</dd>' +
-      '<dt>Выгрузка</dt><dd class="num">' + C.ruDate(t.unloadDate) + '</dd>' +
-      '<dt>Условие оплаты</dt><dd>' + esc(t.termDays) + ' ' + (t.termType === 'calendar' ? 'календарных' : 'банковских') + ' дн. с момента: ' + esc(C.BASE_EVENTS[t.baseEvent]) + (t.baseEventDate ? ' (' + C.ruDate(t.baseEventDate) + ')' : '') + '</dd>' +
-      '<dt>Документы</dt><dd>' + (t.docsSentDate ? 'отправлены ' + C.ruDate(t.docsSentDate) + (t.docsTrack ? ', ' + esc(t.docsTrack) : '') : '<span style="color:var(--bad)">дата отправки не указана</span>') + '</dd>' +
-      '<dt>Срок оплаты</dt><dd class="num">' + (st.due ? C.ruDate(st.due) + (st.estimated ? ' (оценка: ' + esc(st.reason) + ')' : '') : esc(st.reason)) + '</dd>' + (C.computeDue(t).calendarWarning ? '<dd style="grid-column:2;color:var(--warn)">' + esc(C.computeDue(t).calendarWarning) + '</dd>' : '') +
-      (i395 ? '<dt>Проценты ст. 395</dt><dd class="num">' + rub(i395.total) + ' за ' + i395.days + ' дн.</dd>' : '') +
-      (pen ? '<dt>Неустойка по заявке</dt><dd class="num">' + rub(pen) + '</dd>' : '') +
-      (t.claimSentDate ? '<dt>Претензия</dt><dd>направлена ' + C.ruDate(t.claimSentDate) + ', иск — не раньше ' + C.ruDate(C.courtAllowedDate(t.claimSentDate)) + '</dd>' : '') +
-      (lim ? '<dt>Исковая давность</dt><dd class="num">ориентир до ' + C.ruDate(lim) + ' (1 год по ст. 797 ГК, ориентир без учёта приостановки на претензию)</dd>' : '') +
-      (act ? '<dt>Что делать</dt><dd><b>' + esc(act.title) + '</b></dd>' : '') +
-      '</dl>' +
-      '<fieldset><legend>Оплаты</legend>' + (pays ? '<ul style="margin:0;padding-left:18px">' + pays + '</ul>' : '<p class="hint">Оплат пока нет.</p>') +
-      '<div class="grid2"><label>Сумма, руб.<input id="payAmount" type="number" min="0" step="0.01" value="' + (C.debt(t) || '') + '"></label><label>Дата<input id="payDate" type="date" value="' + TODAY + '"></label></div>' +
-      '<div class="toolbar"><button class="primary" id="btnAddPay">Отметить оплату</button>' + (!t.baseEventDate && t.baseEvent !== 'unload' ? '<button id="btnDocsGot">Заказчик получил документы сегодня</button>' : '') + '</div></fieldset>';
-    $('viewFoot').innerHTML = '<button id="btnEdit">Редактировать</button><span style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">' +
-      (st.code !== 'paid' ? '<button id="btnRemind">Текст напоминания</button>' : '') +
-      (st.code === 'overdue' ? '<button class="primary" id="btnClaim">Претензия</button>' : '') + '</span>';
-    $('btnEdit').onclick = () => { $('dlgView').close(); openForm(id); };
-    $('btnAddPay').onclick = () => {
-      const a = Number($('payAmount').value), d = $('payDate').value;
-      if (!(a > 0) || !C.parse(d)) { toast('Укажите сумму больше нуля и дату'); return; }
-      (t.payments = t.payments || []).push({ amount: a, date: d }); save(); render(); openView(id); toast('Оплата отмечена');
+    $("viewTitle").textContent = t.customer + (t.orderNo ? " \xB7 \u0437\u0430\u044F\u0432\u043A\u0430 " + t.orderNo : "");
+    const pays = (t.payments || []).map((p, i) => '<li class="num">' + C.ruDate(p.date) + " \u2014 " + rub(p.amount) + ' <button class="ghost small danger" data-delpay="' + i + '">\u0443\u0431\u0440\u0430\u0442\u044C</button></li>').join("");
+    $("viewBody").innerHTML = '<dl class="kv"><dt>\u0421\u0442\u0430\u0442\u0443\u0441</dt><dd><span class="pill ' + (st.code === "overdue" ? "overdue" : st.code === "soon" ? "soon" : st.code === "paid" ? "paid" : "") + '">' + esc(st.code === "overdue" ? "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u043A\u0430 " + st.overdueDays + " \u0434\u043D." : st.label) + '</span></dd><dt>\u0421\u0443\u043C\u043C\u0430 / \u0434\u043E\u043B\u0433</dt><dd class="num">' + rub(Number(t.amount)) + " / " + rub(C.debt(t)) + "</dd><dt>\u041C\u0430\u0440\u0448\u0440\u0443\u0442</dt><dd>" + esc(t.route || "\u2014") + '</dd><dt>\u0412\u044B\u0433\u0440\u0443\u0437\u043A\u0430</dt><dd class="num">' + C.ruDate(t.unloadDate) + "</dd><dt>\u0423\u0441\u043B\u043E\u0432\u0438\u0435 \u043E\u043F\u043B\u0430\u0442\u044B</dt><dd>" + esc(t.termDays) + " " + (t.termType === "calendar" ? "\u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u043D\u044B\u0445" : "\u0431\u0430\u043D\u043A\u043E\u0432\u0441\u043A\u0438\u0445") + " \u0434\u043D. \u0441 \u043C\u043E\u043C\u0435\u043D\u0442\u0430: " + esc(C.BASE_EVENTS[t.baseEvent]) + (t.baseEventDate ? " (" + C.ruDate(t.baseEventDate) + ")" : "") + "</dd><dt>\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B</dt><dd>" + (t.docsSentDate ? "\u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B " + C.ruDate(t.docsSentDate) + (t.docsTrack ? ", " + esc(t.docsTrack) : "") : '<span style="color:var(--bad)">\u0434\u0430\u0442\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043D\u0430</span>') + '</dd><dt>\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B</dt><dd class="num">' + (st.due ? C.ruDate(st.due) + (st.estimated ? " (\u043E\u0446\u0435\u043D\u043A\u0430: " + esc(st.reason) + ")" : "") : esc(st.reason)) + "</dd>" + (C.computeDue(t).calendarWarning ? '<dd style="grid-column:2;color:var(--warn)">' + esc(C.computeDue(t).calendarWarning) + "</dd>" : "") + (i395 ? '<dt>\u041F\u0440\u043E\u0446\u0435\u043D\u0442\u044B \u0441\u0442. 395</dt><dd class="num">' + rub(i395.total) + " \u0437\u0430 " + i395.days + " \u0434\u043D.</dd>" : "") + (pen ? '<dt>\u041D\u0435\u0443\u0441\u0442\u043E\u0439\u043A\u0430 \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0435</dt><dd class="num">' + rub(pen) + "</dd>" : "") + (t.claimSentDate ? "<dt>\u041F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044F</dt><dd>\u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 " + C.ruDate(t.claimSentDate) + ", \u0438\u0441\u043A \u2014 \u043D\u0435 \u0440\u0430\u043D\u044C\u0448\u0435 " + C.ruDate(C.courtAllowedDate(t.claimSentDate)) + "</dd>" : "") + (lim ? '<dt>\u0418\u0441\u043A\u043E\u0432\u0430\u044F \u0434\u0430\u0432\u043D\u043E\u0441\u0442\u044C</dt><dd class="num">\u043E\u0440\u0438\u0435\u043D\u0442\u0438\u0440 \u0434\u043E ' + C.ruDate(lim) + " (1 \u0433\u043E\u0434 \u043F\u043E \u0441\u0442. 797 \u0413\u041A, \u043E\u0440\u0438\u0435\u043D\u0442\u0438\u0440 \u0431\u0435\u0437 \u0443\u0447\u0451\u0442\u0430 \u043F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438 \u043D\u0430 \u043F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044E)</dd>" : "") + (act ? "<dt>\u0427\u0442\u043E \u0434\u0435\u043B\u0430\u0442\u044C</dt><dd><b>" + esc(act.title) + "</b></dd>" : "") + "</dl><fieldset><legend>\u041E\u043F\u043B\u0430\u0442\u044B</legend>" + (pays ? '<ul style="margin:0;padding-left:18px">' + pays + "</ul>" : '<p class="hint">\u041E\u043F\u043B\u0430\u0442 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442.</p>') + '<div class="grid2"><label>\u0421\u0443\u043C\u043C\u0430, \u0440\u0443\u0431.<input id="payAmount" type="number" min="0" step="0.01" value="' + (C.debt(t) || "") + '"></label><label>\u0414\u0430\u0442\u0430<input id="payDate" type="date" value="' + TODAY + '"></label></div><div class="toolbar"><button class="primary" id="btnAddPay">\u041E\u0442\u043C\u0435\u0442\u0438\u0442\u044C \u043E\u043F\u043B\u0430\u0442\u0443</button>' + (!t.baseEventDate && t.baseEvent !== "unload" ? '<button id="btnDocsGot">\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A \u043F\u043E\u043B\u0443\u0447\u0438\u043B \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u0441\u0435\u0433\u043E\u0434\u043D\u044F</button>' : "") + "</div></fieldset>";
+    $("viewFoot").innerHTML = '<button id="btnEdit">\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C</button><span style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">' + (st.code !== "paid" ? '<button id="btnRemind">\u0422\u0435\u043A\u0441\u0442 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F</button>' : "") + (st.code === "overdue" ? '<button class="primary" id="btnClaim">\u041F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044F</button>' : "") + "</span>";
+    $("btnEdit").onclick = () => {
+      $("dlgView").close();
+      openForm(id);
     };
-    const dg = $('btnDocsGot'); if (dg) dg.onclick = () => { t.baseEventDate = TODAY; save(); render(); openView(id); toast('Отсчёт срока начат с сегодняшнего дня'); };
-    $('viewBody').querySelectorAll('[data-delpay]').forEach((b) => { b.onclick = () => { t.payments.splice(Number(b.dataset.delpay), 1); save(); render(); openView(id); }; });
-    const br = $('btnRemind'); if (br) br.onclick = () => { track('remind_open'); showText('Напоминание об оплате', C.reminderText(t, state.profile, TODAY), 'Отправьте в мессенджер или по почте контактному лицу заказчика.', '', 'napominanie.txt'); };
-    const bc = $('btnClaim'); if (bc) bc.onclick = () => {
-      track('claim_open');
+    $("btnAddPay").onclick = () => {
+      const a = Number($("payAmount").value), d = $("payDate").value;
+      if (!(a > 0) || !C.parse(d)) {
+        toast("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0441\u0443\u043C\u043C\u0443 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0443\u043B\u044F \u0438 \u0434\u0430\u0442\u0443");
+        return;
+      }
+      (t.payments = t.payments || []).push({ amount: a, date: d });
+      save();
+      render();
+      openView(id);
+      toast("\u041E\u043F\u043B\u0430\u0442\u0430 \u043E\u0442\u043C\u0435\u0447\u0435\u043D\u0430");
+    };
+    const dg = $("btnDocsGot");
+    if (dg) dg.onclick = () => {
+      t.baseEventDate = TODAY;
+      save();
+      render();
+      openView(id);
+      toast("\u041E\u0442\u0441\u0447\u0451\u0442 \u0441\u0440\u043E\u043A\u0430 \u043D\u0430\u0447\u0430\u0442 \u0441 \u0441\u0435\u0433\u043E\u0434\u043D\u044F\u0448\u043D\u0435\u0433\u043E \u0434\u043D\u044F");
+    };
+    $("viewBody").querySelectorAll("[data-delpay]").forEach((b) => {
+      b.onclick = () => {
+        t.payments.splice(Number(b.dataset.delpay), 1);
+        save();
+        render();
+        openView(id);
+      };
+    });
+    const br = $("btnRemind");
+    if (br) br.onclick = () => {
+      track("remind_open");
+      showText("\u041D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 \u043E\u0431 \u043E\u043F\u043B\u0430\u0442\u0435", C.reminderText(t, state.profile, TODAY), "\u041E\u0442\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u0432 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440 \u0438\u043B\u0438 \u043F\u043E \u043F\u043E\u0447\u0442\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043D\u043E\u043C\u0443 \u043B\u0438\u0446\u0443 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430.", "", "napominanie.txt");
+    };
+    const bc = $("btnClaim");
+    if (bc) bc.onclick = () => {
+      track("claim_open");
       const c = C.claimText(t, state.profile, TODAY, state.rates);
-      const warn = [!state.profile.name ? 'Заполните реквизиты во вкладке «Реквизиты и ставка».' : '', c.warning].filter(Boolean).join(' ');
-      showText('Претензия', c.text + (c.calc ? '\n\n' + c.calc : ''), 'Проверьте данные заявки. Отправьте почтой с описью вложения или по ЭДО, затем укажите дату отправки в рейсе — приложение посчитает, когда можно идти в суд.', warn, 'pretenziya-' + (t.orderNo || t.id) + '.txt');
+      const warn = [!state.profile.name ? "\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u0440\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B \u0432\u043E \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \xAB\u0420\u0435\u043A\u0432\u0438\u0437\u0438\u0442\u044B \u0438 \u0441\u0442\u0430\u0432\u043A\u0430\xBB." : "", c.warning].filter(Boolean).join(" ");
+      showText("\u041F\u0440\u0435\u0442\u0435\u043D\u0437\u0438\u044F", c.text + (c.calc ? "\n\n" + c.calc : ""), "\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u044F\u0432\u043A\u0438. \u041E\u0442\u043F\u0440\u0430\u0432\u044C\u0442\u0435 \u043F\u043E\u0447\u0442\u043E\u0439 \u0441 \u043E\u043F\u0438\u0441\u044C\u044E \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F \u0438\u043B\u0438 \u043F\u043E \u042D\u0414\u041E, \u0437\u0430\u0442\u0435\u043C \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u0430\u0442\u0443 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u0432 \u0440\u0435\u0439\u0441\u0435 \u2014 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u043F\u043E\u0441\u0447\u0438\u0442\u0430\u0435\u0442, \u043A\u043E\u0433\u0434\u0430 \u043C\u043E\u0436\u043D\u043E \u0438\u0434\u0442\u0438 \u0432 \u0441\u0443\u0434.", warn, "pretenziya-" + (t.orderNo || t.id) + ".txt");
     };
-    if (!$('dlgView').open) $('dlgView').showModal();
+    if (!$("dlgView").open) $("dlgView").showModal();
   }
-
-  // ---------- текст / копирование / скачивание ----------
-  let textFile = 'text.txt';
+  let textFile = "text.txt";
   function showText(title, text, hint, warn, file) {
-    $('textTitle').textContent = title; $('textArea').value = text; $('textHint').textContent = hint || ''; $('textWarn').textContent = warn || ''; textFile = file || 'text.txt';
-    $('dlgText').showModal();
+    $("textTitle").textContent = title;
+    $("textArea").value = text;
+    $("textHint").textContent = hint || "";
+    $("textWarn").textContent = warn || "";
+    textFile = file || "text.txt";
+    $("dlgText").showModal();
   }
-  $('btnCopyText').addEventListener('click', () => {
-    const ta = $('textArea');
-    const fallback = () => { ta.focus(); ta.select(); toast('Текст выделен — нажмите Ctrl+C'); };
-    try { navigator.clipboard.writeText(ta.value).then(() => toast('Скопировано'), fallback); } catch (e) { fallback(); }
+  $("btnCopyText").addEventListener("click", () => {
+    const ta = $("textArea");
+    const fallback = () => {
+      ta.focus();
+      ta.select();
+      toast("\u0422\u0435\u043A\u0441\u0442 \u0432\u044B\u0434\u0435\u043B\u0435\u043D \u2014 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 Ctrl+C");
+    };
+    try {
+      navigator.clipboard.writeText(ta.value).then(() => toast("\u0421\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u043E"), fallback);
+    } catch (e) {
+      fallback();
+    }
   });
   function download(name, content, type) {
     try {
-      const blob = new Blob([content], { type: type || 'text/plain;charset=utf-8' });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }, 1e3);
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      return false;
+    }
   }
-  $('btnDownloadText').addEventListener('click', () => { download(textFile, $('textArea').value); toast('Если файл не скачался — используйте «Копировать»'); });
-
-  // ---------- импорт / экспорт ----------
-  $('csvCols').textContent = C.CSV_FIELDS.join(';');
-  $('btnImport').addEventListener('click', () => { $('impErrors').hidden = true; $('dlgImport').showModal(); });
-  $('btnExport').addEventListener('click', () => { $('impErrors').hidden = true; $('dlgImport').showModal(); });
-  $('csvFile').addEventListener('change', (e) => {
-    const f = e.target.files[0]; if (!f) return;
+  $("btnDownloadText").addEventListener("click", () => {
+    download(textFile, $("textArea").value);
+    toast("\u0415\u0441\u043B\u0438 \u0444\u0430\u0439\u043B \u043D\u0435 \u0441\u043A\u0430\u0447\u0430\u043B\u0441\u044F \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439\u0442\u0435 \xAB\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C\xBB");
+  });
+  $("csvCols").textContent = C.CSV_FIELDS.join(";");
+  $("btnImport").addEventListener("click", () => {
+    $("impErrors").hidden = true;
+    $("dlgImport").showModal();
+  });
+  $("btnExport").addEventListener("click", () => {
+    $("impErrors").hidden = true;
+    $("dlgImport").showModal();
+  });
+  $("csvFile").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
     const r = new FileReader();
     r.onload = () => {
-      // Excel в Windows часто сохраняет CSV в кодировке Windows-1251: пробуем UTF-8 строго, иначе 1251
       let txt;
-      try { txt = new TextDecoder('utf-8', { fatal: true }).decode(r.result); }
-      catch (err) { try { txt = new TextDecoder('windows-1251').decode(r.result); toast('Файл в кодировке Windows-1251 — перекодирован'); } catch (e2) { txt = new TextDecoder('utf-8').decode(r.result); } }
-      $('csvText').value = txt;
+      try {
+        txt = new TextDecoder("utf-8", { fatal: true }).decode(r.result);
+      } catch (err) {
+        try {
+          txt = new TextDecoder("windows-1251").decode(r.result);
+          toast("\u0424\u0430\u0439\u043B \u0432 \u043A\u043E\u0434\u0438\u0440\u043E\u0432\u043A\u0435 Windows-1251 \u2014 \u043F\u0435\u0440\u0435\u043A\u043E\u0434\u0438\u0440\u043E\u0432\u0430\u043D");
+        } catch (e2) {
+          txt = new TextDecoder("utf-8").decode(r.result);
+        }
+      }
+      $("csvText").value = txt;
     };
     r.readAsArrayBuffer(f);
   });
-  $('btnDoImport').addEventListener('click', () => {
-    const txt = $('csvText').value.trim();
-    if (!txt) { toast('Выберите файл или вставьте CSV'); return; }
-    let res; try { res = C.parseCsv(txt); } catch (e) { res = { trips: [], errors: ['не удалось прочитать CSV: ' + e.message], warnings: [] }; }
-    const good = res.trips.filter((t) => t.customer && C.parse(t.unloadDate || '') && Number(t.amount) > 0);
+  $("btnDoImport").addEventListener("click", () => {
+    const txt = $("csvText").value.trim();
+    if (!txt) {
+      toast("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u0430\u0439\u043B \u0438\u043B\u0438 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 CSV");
+      return;
+    }
+    let res;
+    try {
+      res = C.parseCsv(txt);
+    } catch (e) {
+      res = { trips: [], errors: ["\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C CSV: " + e.message], warnings: [] };
+    }
+    const good = res.trips.filter((t) => t.customer && C.parse(t.unloadDate || "") && Number(t.amount) > 0);
     const existing = new Set(state.trips.filter((t) => !t.demo).map(C.tripKey));
     const fresh = good.filter((t) => !existing.has(C.tripKey(t)));
     const dupl = good.length - fresh.length;
-    const msgs = res.errors.slice(0, 10).concat(res.errors.length > 10 ? ['…и ещё ' + (res.errors.length - 10) + ' ошибок'] : [])
-      .concat((res.warnings || []).map((w) => 'Внимание: ' + w)).concat(dupl ? ['Пропущено дублей (уже есть в списке): ' + dupl] : []);
-    $('impErrors').innerHTML = msgs.map((x) => '<li>' + esc(x) + '</li>').join(''); $('impErrors').hidden = !msgs.length;
-    if (!fresh.length) { if (!msgs.length) toast('Не найдено рейсов с заказчиком, суммой и датой выгрузки'); return; }
-    state.trips = state.trips.filter((t) => !t.demo).concat(fresh); save(); render();
-    if (!msgs.length) $('dlgImport').close();
-    toast('Добавлено: ' + tripsWord(fresh.length) + (res.errors.length ? ' · строки с ошибками пропущены' : ''));
+    const msgs = res.errors.slice(0, 10).concat(res.errors.length > 10 ? ["\u2026\u0438 \u0435\u0449\u0451 " + (res.errors.length - 10) + " \u043E\u0448\u0438\u0431\u043E\u043A"] : []).concat((res.warnings || []).map((w) => "\u0412\u043D\u0438\u043C\u0430\u043D\u0438\u0435: " + w)).concat(dupl ? ["\u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E \u0434\u0443\u0431\u043B\u0435\u0439 (\u0443\u0436\u0435 \u0435\u0441\u0442\u044C \u0432 \u0441\u043F\u0438\u0441\u043A\u0435): " + dupl] : []);
+    $("impErrors").innerHTML = msgs.map((x) => "<li>" + esc(x) + "</li>").join("");
+    $("impErrors").hidden = !msgs.length;
+    if (!fresh.length) {
+      if (!msgs.length) toast("\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0435\u0439\u0441\u043E\u0432 \u0441 \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u043E\u043C, \u0441\u0443\u043C\u043C\u043E\u0439 \u0438 \u0434\u0430\u0442\u043E\u0439 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438");
+      return;
+    }
+    state.trips = state.trips.filter((t) => !t.demo).concat(fresh);
+    save();
+    render();
+    if (!msgs.length) $("dlgImport").close();
+    toast("\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: " + tripsWord(fresh.length) + (res.errors.length ? " \xB7 \u0441\u0442\u0440\u043E\u043A\u0438 \u0441 \u043E\u0448\u0438\u0431\u043A\u0430\u043C\u0438 \u043F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u044B" : ""));
   });
-  $('btnTemplate').addEventListener('click', () => {
-    $('csvText').value = 'Заказчик;ИНН;№ заявки;Маршрут;Дата выгрузки;Сумма;Срок оплаты;Тип дней;Срок от;Документы отправлены;Трек;Оплачено;Дата оплаты\nООО «Пример»;7700000000;125;Рязань — Москва;03.10.2026;55 000;10;банковские;оригиналы;05.10.2026;СДЭК 123;0;';
+  $("btnTemplate").addEventListener("click", () => {
+    $("csvText").value = "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A;\u0418\u041D\u041D;\u2116 \u0437\u0430\u044F\u0432\u043A\u0438;\u041C\u0430\u0440\u0448\u0440\u0443\u0442;\u0414\u0430\u0442\u0430 \u0432\u044B\u0433\u0440\u0443\u0437\u043A\u0438;\u0421\u0443\u043C\u043C\u0430;\u0421\u0440\u043E\u043A \u043E\u043F\u043B\u0430\u0442\u044B;\u0422\u0438\u043F \u0434\u043D\u0435\u0439;\u0421\u0440\u043E\u043A \u043E\u0442;\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B;\u0422\u0440\u0435\u043A;\u041E\u043F\u043B\u0430\u0447\u0435\u043D\u043E;\u0414\u0430\u0442\u0430 \u043E\u043F\u043B\u0430\u0442\u044B\n\u041E\u041E\u041E \xAB\u041F\u0440\u0438\u043C\u0435\u0440\xBB;7700000000;125;\u0420\u044F\u0437\u0430\u043D\u044C \u2014 \u041C\u043E\u0441\u043A\u0432\u0430;03.10.2026;55 000;10;\u0431\u0430\u043D\u043A\u043E\u0432\u0441\u043A\u0438\u0435;\u043E\u0440\u0438\u0433\u0438\u043D\u0430\u043B\u044B;05.10.2026;\u0421\u0414\u042D\u041A 123;0;";
   });
-  $('btnCsvOut').addEventListener('click', () => { state.lastBackup = TODAY; save(); render(); track('backup'); const csv = C.toCsv(state.trips); download('reysy-' + TODAY + '.csv', csv, 'text/csv;charset=utf-8'); showText('CSV для Excel', csv, 'Если файл не скачался автоматически, скопируйте текст и сохраните как reysy.csv (кодировка UTF-8).', '', 'reysy-' + TODAY + '.csv'); });
-  $('btnIcsOut').addEventListener('click', () => { const ics = C.toIcs(state.trips, TODAY); download('sroki-oplat.ics', ics, 'text/calendar;charset=utf-8'); showText('Сроки оплат для календаря', ics, 'Если файл не скачался, скопируйте текст, сохраните как sroki-oplat.ics и откройте на телефоне — сроки появятся в календаре.', '', 'sroki-oplat.ics'); });
-
-  $('btnClearDemo').addEventListener('click', () => { track('demo_clear'); state.trips = state.trips.filter((t) => !t.demo); state.demo = false; save(); render(); toast('Пример удалён. Добавьте свой первый рейс'); });
-
-  // ---------- реквизиты и ставка ----------
+  $("btnCsvOut").addEventListener("click", () => {
+    state.lastBackup = TODAY;
+    save();
+    render();
+    track("backup");
+    const csv = C.toCsv(state.trips);
+    download("reysy-" + TODAY + ".csv", csv, "text/csv;charset=utf-8");
+    showText("CSV \u0434\u043B\u044F Excel", csv, "\u0415\u0441\u043B\u0438 \u0444\u0430\u0439\u043B \u043D\u0435 \u0441\u043A\u0430\u0447\u0430\u043B\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438, \u0441\u043A\u043E\u043F\u0438\u0440\u0443\u0439\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u043A\u0430\u043A reysy.csv (\u043A\u043E\u0434\u0438\u0440\u043E\u0432\u043A\u0430 UTF-8).", "", "reysy-" + TODAY + ".csv");
+  });
+  $("btnIcsOut").addEventListener("click", () => {
+    const ics = C.toIcs(state.trips, TODAY);
+    download("sroki-oplat.ics", ics, "text/calendar;charset=utf-8");
+    showText("\u0421\u0440\u043E\u043A\u0438 \u043E\u043F\u043B\u0430\u0442 \u0434\u043B\u044F \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044F", ics, "\u0415\u0441\u043B\u0438 \u0444\u0430\u0439\u043B \u043D\u0435 \u0441\u043A\u0430\u0447\u0430\u043B\u0441\u044F, \u0441\u043A\u043E\u043F\u0438\u0440\u0443\u0439\u0442\u0435 \u0442\u0435\u043A\u0441\u0442, \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u043A\u0430\u043A sroki-oplat.ics \u0438 \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u043D\u0430 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0435 \u2014 \u0441\u0440\u043E\u043A\u0438 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0435.", "", "sroki-oplat.ics");
+  });
+  $("btnClearDemo").addEventListener("click", () => {
+    track("demo_clear");
+    state.trips = state.trips.filter((t) => !t.demo);
+    state.demo = false;
+    save();
+    render();
+    toast("\u041F\u0440\u0438\u043C\u0435\u0440 \u0443\u0434\u0430\u043B\u0451\u043D. \u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0441\u0432\u043E\u0439 \u043F\u0435\u0440\u0432\u044B\u0439 \u0440\u0435\u0439\u0441");
+  });
   function fillProfile() {
-    $('pName').value = state.profile.name || ''; $('pInn').value = state.profile.inn || ''; $('pSigner').value = state.profile.signer || '';
-    $('pContacts').value = state.profile.contacts || ''; $('pBank').value = state.profile.bank || '';
+    $("pName").value = state.profile.name || "";
+    $("pInn").value = state.profile.inn || "";
+    $("pSigner").value = state.profile.signer || "";
+    $("pContacts").value = state.profile.contacts || "";
+    $("pBank").value = state.profile.bank || "";
     renderRates();
   }
   function renderRates() {
-    $('ratesBox').innerHTML = state.rates.map((r, i) => '<div class="grid2" style="align-items:end"><label>Действует с<input type="date" data-rf="' + i + '" value="' + esc(r.from) + '"></label><label>Ставка, %<input type="number" step="0.01" min="0" data-rr="' + i + '" value="' + esc(r.rate) + '"></label>' + (state.rates.length > 1 ? '<button class="ghost danger" data-rd="' + i + '">Убрать</button>' : '') + '</div>').join('');
-    $('ratesBox').querySelectorAll('[data-rd]').forEach((b) => { b.onclick = () => { state.rates.splice(Number(b.dataset.rd), 1); renderRates(); }; });
+    $("ratesBox").innerHTML = state.rates.map((r, i) => '<div class="grid2" style="align-items:end"><label>\u0414\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u0441<input type="date" data-rf="' + i + '" value="' + esc(r.from) + '"></label><label>\u0421\u0442\u0430\u0432\u043A\u0430, %<input type="number" step="0.01" min="0" data-rr="' + i + '" value="' + esc(r.rate) + '"></label>' + (state.rates.length > 1 ? '<button class="ghost danger" data-rd="' + i + '">\u0423\u0431\u0440\u0430\u0442\u044C</button>' : "") + "</div>").join("");
+    $("ratesBox").querySelectorAll("[data-rd]").forEach((b) => {
+      b.onclick = () => {
+        state.rates.splice(Number(b.dataset.rd), 1);
+        renderRates();
+      };
+    });
   }
-  $('btnAddRate').addEventListener('click', () => { readRates(); state.rates.push({ from: TODAY, rate: state.rates[state.rates.length - 1]?.rate ?? 14 }); renderRates(); });
-  function readRates() {
-    state.rates = state.rates.map((r, i) => ({ from: $('ratesBox').querySelector('[data-rf="' + i + '"]')?.value || r.from, rate: Number($('ratesBox').querySelector('[data-rr="' + i + '"]')?.value ?? r.rate) }));
-  }
-  $('btnSaveProfile').addEventListener('click', () => {
-    const inn = $('pInn').value.trim();
-    if (inn && !/^\d{10}(\d{2})?$/.test(inn)) { toast('ИНН — 10 или 12 цифр'); return; }
+  $("btnAddRate").addEventListener("click", () => {
+    var _a, _b;
     readRates();
-    if (state.rates.some((r) => !C.parse(r.from) || !(r.rate >= 0))) { toast('Проверьте даты и ставки'); return; }
-    state.profile = { name: $('pName').value.trim(), inn, signer: $('pSigner').value.trim(), contacts: $('pContacts').value.trim(), bank: $('pBank').value.trim() };
-    save(); render(); toast('Сохранено');
+    state.rates.push({ from: TODAY, rate: (_b = (_a = state.rates[state.rates.length - 1]) == null ? void 0 : _a.rate) != null ? _b : 14 });
+    renderRates();
   });
-
-  // ---------- резервная копия, обратная связь, установка ----------
-  $('btnBackup').addEventListener('click', () => $('btnCsvOut').click());
-  $('btnBackupLater').addEventListener('click', () => { state.backupSnooze = C.addDays(TODAY, 3); save(); render(); });
-  $('btnFeedback').addEventListener('click', () => track('feedback'));
+  function readRates() {
+    state.rates = state.rates.map((r, i) => {
+      var _a, _b, _c;
+      return { from: ((_a = $("ratesBox").querySelector('[data-rf="' + i + '"]')) == null ? void 0 : _a.value) || r.from, rate: Number((_c = (_b = $("ratesBox").querySelector('[data-rr="' + i + '"]')) == null ? void 0 : _b.value) != null ? _c : r.rate) };
+    });
+  }
+  $("btnSaveProfile").addEventListener("click", () => {
+    const inn = $("pInn").value.trim();
+    if (inn && !/^\d{10}(\d{2})?$/.test(inn)) {
+      toast("\u0418\u041D\u041D \u2014 10 \u0438\u043B\u0438 12 \u0446\u0438\u0444\u0440");
+      return;
+    }
+    readRates();
+    if (state.rates.some((r) => !C.parse(r.from) || !(r.rate >= 0))) {
+      toast("\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u0434\u0430\u0442\u044B \u0438 \u0441\u0442\u0430\u0432\u043A\u0438");
+      return;
+    }
+    state.profile = { name: $("pName").value.trim(), inn, signer: $("pSigner").value.trim(), contacts: $("pContacts").value.trim(), bank: $("pBank").value.trim() };
+    save();
+    render();
+    toast("\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E");
+  });
+  $("btnBackup").addEventListener("click", () => $("btnCsvOut").click());
+  $("btnBackupLater").addEventListener("click", () => {
+    state.backupSnooze = C.addDays(TODAY, 3);
+    save();
+    render();
+  });
+  $("btnFeedback").addEventListener("click", () => track("feedback"));
   let deferredInstall = null;
-  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; $('btnInstall').hidden = false; });
-  $('btnInstall').addEventListener('click', async () => {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    $("btnInstall").hidden = false;
+  });
+  $("btnInstall").addEventListener("click", async () => {
     if (!deferredInstall) return;
     deferredInstall.prompt();
     const r = await deferredInstall.userChoice.catch(() => null);
-    if (r && r.outcome === 'accepted') track('pwa_install');
-    deferredInstall = null; $('btnInstall').hidden = true;
+    if (r && r.outcome === "accepted") track("pwa_install");
+    deferredInstall = null;
+    $("btnInstall").hidden = true;
   });
-  if (window.REYS_PWA && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* офлайн-режим необязателен */ });
+  if (window.REYS_PWA && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+    });
   }
-
   render();
 })();
 
